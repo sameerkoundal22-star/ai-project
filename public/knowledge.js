@@ -254,3 +254,8 @@ const CLIENT_KNOWLEDGE = {
     };
   }
 };
+
+
+if (typeof window !== 'undefined') {
+  window.CLIENT_KNOWLEDGE = CLIENT_KNOWLEDGE;
+}
