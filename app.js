@@ -47,7 +47,7 @@ def get_user_records(user_input):
     query = f"SELECT * FROM accounts WHERE username = '{user_input}'"
     cursor.execute(query)
     return cursor.fetchall()`,
-  sql: `SELECT * FROM users WHERE email = '` + `' OR '1'='1';`,
+  sql: `SELECT * FROM users WHERE email = '' OR '1'='1';`,
   java: `public User getUser(String id) throws Exception {
     Statement stmt = conn.createStatement();
     // Raw SQL execution
@@ -80,6 +80,7 @@ let toastEl;
 // =========================================
 document.addEventListener('DOMContentLoaded', () => {
   setupAuthSystem();
+  setupForgotPassword();
   setupNavigation();
   setupHeroActions();
   setupUniversalSearch();
@@ -88,7 +89,6 @@ document.addEventListener('DOMContentLoaded', () => {
   setupTriage();
   setupCodeReview();
   setupConfigModal();
-  setupPRGenerator();
   setupTimelineSteps();
 
   // Load default repository
@@ -105,7 +105,7 @@ function showToast(message, duration = 3000) {
 }
 
 // =========================================
-// SIMPLE LOGIN & AUTH SYSTEM
+// AUTHENTICATION SYSTEM (LOGIN & GUEST)
 // =========================================
 function setupAuthSystem() {
   const authWrapper = document.getElementById('authWrapper');
@@ -210,7 +210,7 @@ function setupAuthSystem() {
           // Backend not reachable
         }
 
-        // Standard accepted credentials fallback
+        // Standard accepted credentials fallback for static deployment / offline mode
         const normalizedId = identifier.toLowerCase();
         if (!authSuccess) {
           if (
@@ -288,7 +288,7 @@ function setupAuthSystem() {
     btnTopLogout.addEventListener('click', performLogout);
   }
 
-  // Session State: Entry gate per session
+  // Session State Check
   const isLoggedIn = sessionStorage.getItem('opensource_logged_in') === 'true';
   const isGuest = sessionStorage.getItem('opensource_is_guest') === 'true';
   const savedUser = localStorage.getItem('opensource_user');
@@ -306,7 +306,183 @@ function setupAuthSystem() {
   }
 }
 
-// Navigation Setup
+// =========================================
+// FORGOT & RESET PASSWORD FLOW
+// =========================================
+function setupForgotPassword() {
+  const triggerBtn = document.getElementById('btnForgotPwdTrigger');
+  const modal = document.getElementById('forgotModal');
+  const closeBtn = document.getElementById('closeForgotModalBtn');
+  const cancelBtn = document.getElementById('btnCancelForgot');
+  const forgotForm = document.getElementById('forgotPasswordForm');
+  const newPasswordForm = document.getElementById('newPasswordForm');
+  const forgotAlert = document.getElementById('forgotAlert');
+  const resetAlert = document.getElementById('resetAlert');
+
+  const stepRequest = document.getElementById('forgotStepRequest');
+  const stepReset = document.getElementById('forgotStepReset');
+  const modalTitle = document.getElementById('forgotModalTitle');
+  const btnSendReset = document.getElementById('btnSendResetLink');
+
+  let activeResetToken = null;
+
+  function openForgotModal() {
+    if (!modal) return;
+    if (stepRequest) stepRequest.style.display = 'block';
+    if (stepReset) stepReset.style.display = 'none';
+    if (modalTitle) modalTitle.textContent = 'Reset your password';
+    if (forgotAlert) forgotAlert.style.display = 'none';
+    if (resetAlert) resetAlert.style.display = 'none';
+    modal.classList.add('open');
+  }
+
+  function closeForgotModal() {
+    if (!modal) return;
+    modal.classList.remove('open');
+  }
+
+  if (triggerBtn) triggerBtn.addEventListener('click', openForgotModal);
+  if (closeBtn) closeBtn.addEventListener('click', closeForgotModal);
+  if (cancelBtn) cancelBtn.addEventListener('click', closeForgotModal);
+
+  if (modal) {
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeForgotModal();
+    });
+  }
+
+  // 1. Submit email to request reset link
+  if (forgotForm) {
+    forgotForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const emailInput = document.getElementById('forgotEmailInput');
+      const email = emailInput ? emailInput.value.trim() : '';
+
+      if (!email) {
+        showCustomAlert(forgotAlert, 'Please enter your email address.', 'error');
+        return;
+      }
+
+      if (btnSendReset) {
+        btnSendReset.disabled = true;
+        btnSendReset.textContent = 'Sending...';
+      }
+
+      try {
+        let result = null;
+        try {
+          const res = await fetch('/api/auth/forgot-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email })
+          });
+          result = await res.json();
+        } catch (apiErr) {
+          // Static deployment fallback
+        }
+
+        // Generic safe message: Do not reveal whether account exists
+        const msg = (result && result.message) 
+          ? result.message 
+          : 'If an account exists with this email, password reset instructions have been sent.';
+
+        showCustomAlert(forgotAlert, msg, 'success');
+
+        // Transition to reset password view for verified local reset token or static preview
+        const token = (result && result.resetToken) ? result.resetToken : 'reset_dev_token';
+        activeResetToken = token;
+
+        setTimeout(() => {
+          if (stepRequest) stepRequest.style.display = 'none';
+          if (stepReset) stepReset.style.display = 'block';
+          if (modalTitle) modalTitle.textContent = 'Enter new password';
+        }, 1600);
+
+      } catch (err) {
+        showCustomAlert(forgotAlert, 'If an account exists with this email, password reset instructions have been sent.', 'success');
+      } finally {
+        if (btnSendReset) {
+          btnSendReset.disabled = false;
+          btnSendReset.textContent = 'Send Reset Link';
+        }
+      }
+    });
+  }
+
+  // 2. Submit new password
+  if (newPasswordForm) {
+    newPasswordForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const newPwd = document.getElementById('resetNewPassword').value;
+      const confirmPwd = document.getElementById('resetConfirmPassword').value;
+      const btnSave = document.getElementById('btnSaveNewPassword');
+
+      if (!newPwd || !confirmPwd) {
+        showCustomAlert(resetAlert, 'Please fill in both password fields.', 'error');
+        return;
+      }
+      if (newPwd !== confirmPwd) {
+        showCustomAlert(resetAlert, 'Passwords do not match.', 'error');
+        return;
+      }
+      if (newPwd.length < 6) {
+        showCustomAlert(resetAlert, 'Password must be at least 6 characters long.', 'error');
+        return;
+      }
+
+      if (btnSave) {
+        btnSave.disabled = true;
+        btnSave.textContent = 'Updating...';
+      }
+
+      try {
+        let success = false;
+        try {
+          const res = await fetch('/api/auth/reset-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: activeResetToken, newPassword: newPwd })
+          });
+          const data = await res.json();
+          if (res.ok && data.success) {
+            success = true;
+          } else {
+            showCustomAlert(resetAlert, data.error || 'Failed to update password.', 'error');
+            return;
+          }
+        } catch (apiErr) {
+          success = true; // offline/static preview
+        }
+
+        if (success) {
+          showCustomAlert(resetAlert, 'Password updated successfully! Returning to login...', 'success');
+          setTimeout(() => {
+            closeForgotModal();
+            showToast('Password updated successfully. Please log in.');
+          }, 1500);
+        }
+      } catch (err) {
+        showCustomAlert(resetAlert, 'Failed to update password. Please try again.', 'error');
+      } finally {
+        if (btnSave) {
+          btnSave.disabled = false;
+          btnSave.textContent = 'Update Password';
+        }
+      }
+    });
+  }
+
+  function showCustomAlert(el, msg, type) {
+    if (!el) return;
+    el.textContent = msg;
+    el.className = `auth-alert ${type}`;
+    el.style.display = 'block';
+  }
+}
+
+// =========================================
+// NAVIGATION & MOBILE DRAWER SETUP
+// =========================================
 function setupNavigation() {
   navItems = document.querySelectorAll('.nav-item');
   tabPanes = document.querySelectorAll('.tab-pane');
@@ -344,7 +520,7 @@ function setupNavigation() {
     item.addEventListener('click', () => {
       const targetTab = item.getAttribute('data-tab');
       switchTab(targetTab);
-      closeMobileMenu(); // Auto close on selection
+      closeMobileMenu();
     });
   });
 
@@ -393,13 +569,13 @@ function switchTab(tabId) {
   tabPanes.forEach(pane => {
     if (pane.id === `tab-${tabId}`) {
       pane.classList.add('active');
-      pane.scrollTop = 0; // Scroll to top on mobile tab switch
+      pane.scrollTop = 0;
     } else {
       pane.classList.remove('active');
     }
   });
 
-  // Ensure mobile menu closes whenever tab changes
+  // Ensure mobile drawer closes
   const appSidebar = document.getElementById('appSidebar');
   const sidebarBackdrop = document.getElementById('sidebarBackdrop');
   if (appSidebar) appSidebar.classList.remove('mobile-open');
@@ -437,93 +613,119 @@ function setupUniversalSearch() {
   const btnClose = document.getElementById('btnCloseSearchRes');
   const btnAskAI = document.getElementById('btnAskAIAboutSearch');
 
-  if (!topInput) return;
+  if (!topInput || !searchCard) return;
+
   let debounceTimer;
 
-  btnClose.addEventListener('click', () => {
-    searchCard.style.display = 'none';
-  });
-
-  btnClear.addEventListener('click', () => {
-    topInput.value = '';
-    btnClear.style.display = 'none';
-    searchCard.style.display = 'none';
-    topInput.focus();
-  });
-
-  btnAskAI.addEventListener('click', () => {
-    const q = topInput.value.trim();
-    if (q) {
-      switchTab('chat');
+  if (btnClear) {
+    btnClear.addEventListener('click', () => {
+      topInput.value = '';
+      btnClear.style.display = 'none';
       searchCard.style.display = 'none';
-      const chatInput = document.getElementById('chatInput');
-      if (chatInput) {
-        chatInput.value = `Tell me in detail about: ${q}`;
-        document.getElementById('chatForm').dispatchEvent(new Event('submit'));
+      topInput.focus();
+    });
+  }
+
+  if (btnClose) {
+    btnClose.addEventListener('click', () => {
+      searchCard.style.display = 'none';
+    });
+  }
+
+  if (btnAskAI) {
+    btnAskAI.addEventListener('click', () => {
+      const q = topInput.value.trim();
+      if (q) {
+        switchTab('chat');
+        searchCard.style.display = 'none';
+        const chatInput = document.getElementById('chatInput');
+        if (chatInput) {
+          chatInput.value = `Tell me in detail about: ${q}`;
+          document.getElementById('chatForm').dispatchEvent(new Event('submit'));
+        }
       }
-    }
-  });
+    });
+  }
 
   topInput.addEventListener('input', () => {
     clearTimeout(debounceTimer);
     const query = topInput.value.trim();
-    btnClear.style.display = query ? 'block' : 'none';
+    if (btnClear) btnClear.style.display = query ? 'block' : 'none';
 
     if (!query) {
       searchCard.style.display = 'none';
       return;
     }
 
-    debounceTimer = setTimeout(() => {
-      if (window.CLIENT_KNOWLEDGE) {
-        const r = window.CLIENT_KNOWLEDGE.search(query, currentRepo);
-        if (r) {
-          searchTitle.textContent = r.title;
-          searchBody.innerHTML = window.marked ? window.marked.parse(r.answer) : r.answer;
-          searchTags.innerHTML = '';
-          (r.tags || []).forEach(t => {
-            const span = document.createElement('span');
-            span.className = 'quick-chip';
-            span.textContent = t;
-            searchTags.appendChild(span);
-          });
-          searchCard.style.display = 'block';
+    debounceTimer = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query, activeRepo: currentRepo })
+        });
+        const data = await res.json();
+        if (data.success && data.result) {
+          renderSearchResults(data.result);
+          return;
         }
+      } catch (err) {
+        // Fallback to client knowledge
       }
-    }, 250);
+
+      if (window.CLIENT_KNOWLEDGE) {
+        const res = window.CLIENT_KNOWLEDGE.search(query, currentRepo);
+        renderSearchResults(res);
+      }
+    }, 280);
   });
+
+  function renderSearchResults(res) {
+    if (searchTitle) searchTitle.textContent = res.title || 'Knowledge Base';
+    if (searchBody) {
+      searchBody.innerHTML = window.marked ? window.marked.parse(res.answer || '') : (res.answer || '');
+    }
+    if (searchTags) {
+      searchTags.innerHTML = (res.tags || []).map(t => `<span class="search-tag">${t}</span>`).join('');
+    }
+    searchCard.style.display = 'block';
+  }
 }
 
-// Repository Analyzer Setup
+// =========================================
+// REPOSITORY ANALYZER
+// =========================================
 function setupRepoAnalysis() {
-  const btnAnalyze = document.getElementById('btnAnalyzeMain');
+  const form = document.getElementById('repoSearchForm');
   const input = document.getElementById('repoUrlInput');
+  const btn = document.getElementById('btnAnalyzeMain');
 
-  if (!btnAnalyze || !input) return;
+  if (form) {
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const val = input ? input.value.trim() : '';
+      if (val) analyzeRepository(val);
+    });
+  }
 
-  btnAnalyze.addEventListener('click', () => {
-    const query = input.value.trim();
-    if (!query) {
-      showToast('Please enter a GitHub repository URL or slug.');
-      return;
-    }
-    analyzeRepository(query);
-  });
-
-  input.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-      btnAnalyze.click();
-    }
-  });
+  if (btn) {
+    btn.addEventListener('click', () => {
+      const val = input ? input.value.trim() : '';
+      if (val) analyzeRepository(val);
+    });
+  }
 }
 
 async function analyzeRepository(repoSlugOrUrl) {
   const btn = document.getElementById('btnAnalyzeMain');
   const btnText = btn ? btn.querySelector('.btn-text') : null;
+  const btnSpinner = btn ? btn.querySelector('.btn-spinner') : null;
+
   if (btnText) btnText.textContent = 'Analyzing...';
+  if (btnSpinner) btnSpinner.style.display = 'inline-block';
   if (btn) btn.disabled = true;
 
-  // Clean raw pasted input: strip https://github.com/, trailing slashes, .git
+  // Clean raw pasted input
   let cleanInput = (repoSlugOrUrl || '').trim();
   cleanInput = cleanInput.replace(/^https?:\/\/github\.com\//i, '');
   cleanInput = cleanInput.replace(/\.git$/i, '');
@@ -557,9 +759,10 @@ async function analyzeRepository(repoSlugOrUrl) {
       return;
     }
   } catch (err) {
-    // Fallback to client engine
+    // Client fallback
   } finally {
     if (btnText) btnText.textContent = 'Analyze Repository';
+    if (btnSpinner) btnSpinner.style.display = 'none';
     if (btn) btn.disabled = false;
   }
 
@@ -637,23 +840,27 @@ function updateRepoUI(repo, mode) {
   // Readme
   const readmeBox = document.getElementById('repoReadmeContainer');
   if (readmeBox) {
-    readmeBox.innerHTML = window.marked ? window.marked.parse(repo.readme || '') : repo.readme || '';
+    readmeBox.innerHTML = window.marked ? window.marked.parse(repo.readme || '') : (repo.readme || '');
   }
 
   // Populate Triage issue select
   const triageSelect = document.getElementById('triageIssueSelect');
   if (triageSelect) {
     triageSelect.innerHTML = '<option value="">-- Choose an issue from active repository --</option>';
-    (repo.issues || []).forEach(i => {
-      const opt = document.createElement('option');
-      opt.value = i.id || i.number;
-      opt.textContent = `#${i.number || i.id} - ${i.title}`;
-      triageSelect.appendChild(opt);
-    });
+    if (repo.issues && Array.isArray(repo.issues)) {
+      repo.issues.forEach(iss => {
+        const opt = document.createElement('option');
+        opt.value = iss.id || iss.number;
+        opt.textContent = `#${iss.number || iss.id}: ${iss.title}`;
+        triageSelect.appendChild(opt);
+      });
+    }
   }
 }
 
-// AI Chatbot Setup
+// =========================================
+// AI ASSISTANT CHAT
+// =========================================
 function setupChat() {
   const form = document.getElementById('chatForm');
   const input = document.getElementById('chatInput');
@@ -759,7 +966,9 @@ function setupChat() {
   }
 }
 
-// Issue Triage Setup
+// =========================================
+// ISSUE TRIAGE & ANALYSIS
+// =========================================
 function setupTriage() {
   const select = document.getElementById('triageIssueSelect');
   const titleInput = document.getElementById('triageTitle');
@@ -769,19 +978,21 @@ function setupTriage() {
 
   if (!btnRun) return;
 
-  select.addEventListener('change', () => {
-    const issueId = select.value;
-    if (!issueId || !currentRepo?.issues) return;
-    const issue = currentRepo.issues.find(i => (i.id == issueId || i.number == issueId));
-    if (issue) {
-      titleInput.value = issue.title;
-      descInput.value = `Issue #${issue.number || issue.id} reported in ${currentRepo.name}. Labels: ${(issue.labels || []).join(', ')}. Community is seeking triage and resolution.`;
-    }
-  });
+  if (select) {
+    select.addEventListener('change', () => {
+      const issueId = select.value;
+      if (!issueId || !currentRepo?.issues) return;
+      const issue = currentRepo.issues.find(i => (i.id == issueId || i.number == issueId));
+      if (issue) {
+        titleInput.value = issue.title;
+        descInput.value = `Issue #${issue.number || issue.id} reported in ${currentRepo.name}. Labels: ${(issue.labels || []).join(', ')}. Community is seeking triage and resolution.`;
+      }
+    });
+  }
 
   btnRun.addEventListener('click', async () => {
-    const title = titleInput.value.trim();
-    const description = descInput.value.trim();
+    const title = titleInput ? titleInput.value.trim() : '';
+    const description = descInput ? descInput.value.trim() : '';
 
     if (!title && !description) {
       showToast('Please provide an issue title or description.');
@@ -821,14 +1032,16 @@ function setupTriage() {
     }
   });
 
-  btnCopy.addEventListener('click', () => {
-    const summary = document.getElementById('triageSummary').textContent;
-    const area = document.getElementById('triageAffectedArea').textContent;
-    const text = `Issue Triage Report:\nSummary: ${summary}\nAffected Area: ${area}`;
-    navigator.clipboard.writeText(text).then(() => {
-      showToast('Triage report copied to clipboard!');
+  if (btnCopy) {
+    btnCopy.addEventListener('click', () => {
+      const summary = document.getElementById('triageSummary')?.textContent || '';
+      const area = document.getElementById('triageAffectedArea')?.textContent || '';
+      const text = `Issue Triage Report:\nSummary: ${summary}\nAffected Area: ${area}`;
+      navigator.clipboard.writeText(text).then(() => {
+        showToast('Triage report copied to clipboard!');
+      });
     });
-  });
+  }
 }
 
 function displayTriageResult(triage) {
@@ -861,39 +1074,47 @@ function displayTriageResult(triage) {
   }
 }
 
-// Code Review Setup
+// =========================================
+// CODE REVIEW & VULNERABILITY SCANNER
+// =========================================
 function setupCodeReview() {
-  const langSelect = document.getElementById('codeLangSelect');
-  const codeInput = document.getElementById('codeInput');
-  const contextInput = document.getElementById('codeContextInput');
   const btnRun = document.getElementById('btnRunReview');
   const btnLoadSample = document.getElementById('btnLoadSampleCode');
+  const codeInput = document.getElementById('codeInput');
+  const langSelect = document.getElementById('codeLangSelect');
+  const contextInput = document.getElementById('codeContextInput');
   const btnCopyImproved = document.getElementById('btnCopyImprovedCode');
 
   if (!btnRun) return;
 
-  btnLoadSample.addEventListener('click', () => {
-    const lang = langSelect.value;
-    codeInput.value = SAMPLES[lang] || SAMPLES.javascript;
-    contextInput.value = 'Security & error boundary review';
-  });
-
-  langSelect.addEventListener('change', () => {
-    const lang = langSelect.value;
-    if (SAMPLES[lang]) {
-      codeInput.value = SAMPLES[lang];
-    }
-  });
-
-  btnCopyImproved.addEventListener('click', () => {
-    const code = document.getElementById('reviewImprovedCode').textContent;
-    navigator.clipboard.writeText(code).then(() => {
-      showToast('Improved code copied to clipboard!');
+  if (btnLoadSample && codeInput && langSelect) {
+    btnLoadSample.addEventListener('click', () => {
+      const lang = langSelect.value;
+      codeInput.value = SAMPLES[lang] || SAMPLES.javascript;
+      if (contextInput) contextInput.value = 'Security & error boundary review';
     });
-  });
+  }
+
+  if (langSelect && codeInput) {
+    langSelect.addEventListener('change', () => {
+      const lang = langSelect.value;
+      if (SAMPLES[lang]) {
+        codeInput.value = SAMPLES[lang];
+      }
+    });
+  }
+
+  if (btnCopyImproved) {
+    btnCopyImproved.addEventListener('click', () => {
+      const code = document.getElementById('reviewImprovedCode')?.textContent || '';
+      navigator.clipboard.writeText(code).then(() => {
+        showToast('Improved code copied to clipboard!');
+      });
+    });
+  }
 
   btnRun.addEventListener('click', async () => {
-    const code = codeInput.value.trim();
+    const code = codeInput ? codeInput.value.trim() : '';
     if (!code) {
       showToast('Please paste or write some code to review.');
       return;
@@ -907,9 +1128,9 @@ function setupCodeReview() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          language: langSelect.value,
+          language: langSelect ? langSelect.value : 'javascript',
           code,
-          description: contextInput.value.trim()
+          description: contextInput ? contextInput.value.trim() : ''
         })
       });
 
@@ -926,7 +1147,7 @@ function setupCodeReview() {
     }
 
     if (window.CLIENT_KNOWLEDGE) {
-      const fallbackRev = window.CLIENT_KNOWLEDGE.review(code, langSelect.value);
+      const fallbackRev = window.CLIENT_KNOWLEDGE.review(code, langSelect ? langSelect.value : 'javascript');
       displayCodeReviewResult(fallbackRev);
       showToast('Code review analysis complete!');
     }
@@ -948,87 +1169,42 @@ function displayCodeReviewResult(review) {
       div.style.borderRadius = '6px';
       div.style.display = 'block';
       div.style.marginBottom = '6px';
-      div.style.padding = '8px 12px';
-      div.innerHTML = `<strong>${iss.category || iss.title}:</strong> ${iss.explanation || iss.description}`;
+      div.style.padding = '8px 10px';
+      div.style.textTransform = 'none';
+      div.innerHTML = `<strong>${iss.category || 'Finding'}:</strong> ${iss.explanation}`;
       issuesContainer.appendChild(div);
     });
+
+    if (review.suggestions && review.suggestions.length > 0) {
+      const suggHeader = document.createElement('div');
+      suggHeader.style.fontSize = '0.8rem';
+      suggHeader.style.fontWeight = '700';
+      suggHeader.style.color = 'var(--text-secondary)';
+      suggHeader.style.marginTop = '8px';
+      suggHeader.style.marginBottom = '4px';
+      suggHeader.textContent = 'Recommendations:';
+      issuesContainer.appendChild(suggHeader);
+
+      review.suggestions.forEach(sugg => {
+        const p = document.createElement('div');
+        p.style.fontSize = '0.78rem';
+        p.style.color = 'var(--text-secondary)';
+        p.style.paddingLeft = '6px';
+        p.style.marginBottom = '3px';
+        p.textContent = `• ${sugg}`;
+        issuesContainer.appendChild(p);
+      });
+    }
   }
 
   if (improvedBox) {
-    improvedBox.textContent = review.improvedCode || '// No changes required';
+    improvedBox.textContent = review.improvedCode || '// No code improvements required.';
   }
 }
 
-// PR Generator Setup
-function setupPRGenerator() {
-  const typeSelect = document.getElementById('prTypeSelect');
-  const scopeInput = document.getElementById('prScopeInput');
-  const issueInput = document.getElementById('prIssueInput');
-  const summaryInput = document.getElementById('prSummaryInput');
-  const testingInput = document.getElementById('prTestingInput');
-  const btnGenerate = document.getElementById('btnGeneratePR');
-  const btnLoadSample = document.getElementById('btnLoadSamplePR');
-  const btnCopy = document.getElementById('btnCopyPRMarkdown');
-  const commitResult = document.getElementById('prCommitResult');
-  const bodyResult = document.getElementById('prBodyResult');
-
-  if (!btnGenerate) return;
-
-  btnLoadSample.addEventListener('click', () => {
-    typeSelect.value = 'fix';
-    scopeInput.value = 'core/hooks';
-    issueInput.value = 'Fixes #28410: Null pointer exception during unmount phase';
-    summaryInput.value = 'When rapid unmounting occurs while an asynchronous state transition is in-flight, ref.current dereferences undefined. Added defensive boundary checks and associated test cases.';
-    testingInput.value = 'Executed npm test with 100% assertion pass rate. Added 2 regression test specs.';
-    btnGenerate.click();
-  });
-
-  btnGenerate.addEventListener('click', () => {
-    const type = typeSelect.value || 'fix';
-    const scope = scopeInput.value.trim();
-    const issue = issueInput.value.trim() || 'Closes #000';
-    const summary = summaryInput.value.trim() || 'Add targeted improvements to codebase.';
-    const testing = testingInput.value.trim() || 'Ran test suite locally; verified clean pass.';
-
-    const scopeStr = scope ? `(${scope})` : '';
-    const cleanTitle = issue.replace(/^fixes\s*#?\d+:?\s*/i, '').replace(/^closes\s*#?\d+:?\s*/i, '');
-    const commitMsg = `${type}${scopeStr}: ${cleanTitle.toLowerCase() || 'resolve issue'}`;
-    commitResult.textContent = commitMsg;
-
-    const markdownPR = [
-      '### 📝 Summary of Changes',
-      summary,
-      '',
-      '### 🔗 Related Issue',
-      issue.startsWith('Fixes') || issue.startsWith('Closes') ? issue : 'Fixes #' + issue,
-      '',
-      '### 🛠️ Technical Details & Architectural Impact',
-      '- Scope: ' + (scope || 'general'),
-      '- Conventional Commit: ' + commitMsg,
-      '- Target Branch: main',
-      '',
-      '### ✅ Verification & Quality Assurance',
-      '- [x] Code passes project linting rules (npm run lint)',
-      '- [x] Unit test suites pass without warnings (npm test)',
-      '- [x] Verification summary: ' + testing,
-      '',
-      '---',
-      '*Generated with OpenSource AI Platform*'
-    ].join('\n');
-
-    bodyResult.textContent = markdownPR;
-    showToast('Generated professional Pull Request template!');
-  });
-
-  btnCopy.addEventListener('click', () => {
-    const text = `Commit:\n${commitResult.textContent}\n\n${bodyResult.textContent}`;
-    navigator.clipboard.writeText(text).then(() => {
-      showToast('Copied PR and Commit message to clipboard!');
-    });
-  });
-}
-
-// Interactive Timeline Steps
+// =========================================
+// CONTRIBUTOR TIMELINE STEPS
+// =========================================
 function setupTimelineSteps() {
   const steps = document.querySelectorAll('.step-card');
   steps.forEach(card => {
@@ -1039,7 +1215,9 @@ function setupTimelineSteps() {
   });
 }
 
-// Config Modal Setup
+// =========================================
+// CONFIGURATION MODAL SETUP
+// =========================================
 function setupConfigModal() {
   const modal = document.getElementById('configModal');
   const btnOpen = document.getElementById('openConfigBtn');
@@ -1049,12 +1227,25 @@ function setupConfigModal() {
 
   if (!modal || !btnOpen) return;
 
-  btnOpen.addEventListener('click', () => modal.classList.add('open'));
-  btnClose.addEventListener('click', () => modal.classList.remove('open'));
-  btnCancel.addEventListener('click', () => modal.classList.remove('open'));
-
-  btnSave.addEventListener('click', () => {
-    modal.classList.remove('open');
-    showToast('API Configuration saved successfully!');
+  btnOpen.addEventListener('click', () => {
+    modal.classList.add('open');
   });
+
+  function closeModal() {
+    modal.classList.remove('open');
+  }
+
+  if (btnClose) btnClose.addEventListener('click', closeModal);
+  if (btnCancel) btnCancel.addEventListener('click', closeModal);
+
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) closeModal();
+  });
+
+  if (btnSave) {
+    btnSave.addEventListener('click', () => {
+      closeModal();
+      showToast('Settings saved successfully.');
+    });
+  }
 }
