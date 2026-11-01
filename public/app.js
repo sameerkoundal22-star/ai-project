@@ -824,24 +824,26 @@ function setupPRGenerator() {
     const commitMsg = `${type}${scopeStr}: ${cleanTitle.toLowerCase() || 'resolve issue'}`;
     commitResult.textContent = commitMsg;
 
-    const markdownPR = `### 📝 Summary of Changes
-${summary}
-
-### 🔗 Related Issue
-${issue.startsWith('Fixes') || issue.startsWith('Closes') ? issue : 'Fixes #' + issue}
-
-### 🛠️ Technical Details & Architectural Impact
-- Scope: `${scope || 'general'}`
-- Conventional Commit: \`${commitMsg}\`
-- Target Branch: \`main\`
-
-### ✅ Verification & Quality Assurance
-- [x] Code passes project linting rules (`npm run lint`)
-- [x] Unit test suites pass without warnings (`npm test`)
-- [x] Verification summary: ${testing}
-
----
-*Generated with OpenSource AI Platform*`;
+        const markdownPR = [
+      '### 📝 Summary of Changes',
+      summary,
+      '',
+      '### 🔗 Related Issue',
+      issue.startsWith('Fixes') || issue.startsWith('Closes') ? issue : 'Fixes #' + issue,
+      '',
+      '### 🛠️ Technical Details & Architectural Impact',
+      '- Scope: ' + (scope || 'general'),
+      '- Conventional Commit: ' + commitMsg,
+      '- Target Branch: main',
+      '',
+      '### ✅ Verification & Quality Assurance',
+      '- [x] Code passes project linting rules (npm run lint)',
+      '- [x] Unit test suites pass without warnings (npm test)',
+      '- [x] Verification summary: ' + testing,
+      '',
+      '---',
+      '*Generated with OpenSource AI Platform*'
+    ].join('\n');
 
     bodyResult.textContent = markdownPR;
     showToast('Generated professional Pull Request template!');
