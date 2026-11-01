@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenSource AI — Understand. Contribute. Build.</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <!-- Markdown parser -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+  <!-- Subtle Ambient Indigo/Navy Glow Canvas -->
+  <div class="ambient-glow"></div>
+
+  <div id="app" class="app-layout">
+    <!-- Sidebar / Navigation -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-logo">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <circle cx="12" cy="12" r="9"></circle>
+            <path d="M12 3a9 9 0 0 1 9 9"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+        </div>
+        <div class="brand-info">
+          <span class="brand-title">OpenSource AI</span>
+          <span class="brand-tagline">Understand. Contribute. Build.</span>
+        </div>
+      </div>
+
+      <nav class="nav-menu">
+        <button class="nav-item active" data-tab="dashboard">
+          <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+          Dashboard
+        </button>
+        <button class="nav-item" data-tab="chat">
+          <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+          AI Assistant
+        </button>
+        <button class="nav-item" data-tab="repo">
+          <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
+          Repository
+        </button>
+        <button class="nav-item" data-tab="triage">
+          <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+          Issue Triage
+        </button>
+        <button class="nav-item" data-tab="review">
+          <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
+          Code Review
+        </button>
+        <button class="nav-item" data-tab="guide">
+          <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+          Contributor Guide
+        </button>
+      </nav>
+
+      <!-- Active Target Card -->
+      <div class="active-repo-badge" id="activeRepoBadge">
+        <div class="badge-header">
+          <span class="status-dot"></span>
+          <span class="badge-title">Active Target</span>
+        </div>
+        <p class="active-repo-name" id="badgeRepoName">facebook/react</p>
+        <span class="active-repo-mode" id="badgeRepoMode">Instant Mode</span>
+      </div>
+
+      <!-- Quick Switch Section -->
+      <div class="quick-switch-section">
+        <span class="quick-switch-label">Switch Target:</span>
+        <div class="quick-chips-grid">
+          <button class="switch-chip" data-slug="facebook/react">React</button>
+          <button class="switch-chip" data-slug="expressjs/express">Express</button>
+          <button class="switch-chip" data-slug="vuejs/core">Vue 3</button>
+          <button class="switch-chip" data-slug="vercel/next.js">Next.js</button>
+        </div>
+      </div>
+
+      <!-- Settings / Config trigger -->
+      <div class="sidebar-footer">
+        <button class="btn-config" id="openConfigBtn">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+          API Settings
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- Top Bar with Universal Instant Search -->
+      <header class="top-bar">
+        <div class="search-box-top">
+          <svg class="search-icon-top" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input type="text" id="topSearchInput" class="search-input-top" placeholder="Search anything (e.g. React, PR rules, git commit, licenses, express...)" autocomplete="off">
+          <button id="btnClearTopSearch" class="btn-clear-search" style="display:none;">&times;</button>
+        </div>
+
+        <div class="top-bar-right">
+          <div class="palette-status-pill">
+            <span>Palette: <strong>Deep Navy & Slate</strong></span>
+          </div>
+
+          <div class="system-status-pill" id="systemStatusPill">
+            <span class="pill-dot"></span>
+            <span class="pill-text">Engine: <strong>Active</strong></span>
+          </div>
+        </div>
+      </header>
+
+      <!-- Instant Search Result Overlay / Card -->
+      <div id="instantSearchCard" class="instant-search-card" style="display:none;">
+        <div class="search-res-header">
+          <div class="search-res-title">
+            <span id="searchResTitle">Search Result</span>
+            <span id="searchResBadge" class="search-res-badge">Knowledge</span>
+          </div>
+          <button id="btnCloseSearchRes" class="btn-icon-close">&times;</button>
+        </div>
+        <div class="search-res-body" id="searchResBody"></div>
+        <div class="search-res-footer">
+          <div class="search-res-tags" id="searchResTags"></div>
+          <button class="btn btn-secondary btn-sm" id="btnAskAIAboutSearch">Ask Mentor &rarr;</button>
+        </div>
+      </div>
+
+      <!-- TAB 1: DASHBOARD -->
+      <section id="tab-dashboard" class="tab-pane active">
+        <div class="hero-section">
+          <div class="hero-badge">✨ FAST & INTUITIVE DEVELOPER PLATFORM</div>
+          <h1 class="hero-title">OpenSource AI</h1>
+          <p class="hero-subtitle">Your AI-powered assistant. Search any concept, triage GitHub issues, review source code, and become a confident open-source contributor.</p>
+          
+          <!-- Repository Search Input Box -->
+          <div class="repo-search-card">
+            <label class="input-label" for="repoUrlInput">Target GitHub Repository or Topic</label>
+            <div class="search-input-group">
+              <span class="input-prefix">https://github.com/</span>
+              <input type="text" id="repoUrlInput" placeholder="owner/repo (or type react, express, vue, nextjs)" value="facebook/react">
+              <button class="btn btn-primary" id="btnAnalyzeMain">
+                <span class="btn-text">Analyze Repository</span>
+                <span class="btn-spinner" style="display:none;"></span>
+              </button>
+            </div>
+            <div class="sample-links">
+              <span>Quick explore:</span>
+              <a href="#" class="quick-sample" data-repo="facebook/react">React</a>
+              <a href="#" class="quick-sample" data-repo="expressjs/express">Express</a>
+              <a href="#" class="quick-sample" data-repo="vuejs/core">Vue 3</a>
+              <a href="#" class="quick-sample" data-repo="vercel/next.js">Next.js</a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Four Feature Cards -->
+        <div class="features-grid">
+          <div class="feature-card" data-navigate="chat">
+            <div class="feature-icon chat-icon">💬</div>
+            <h3 class="feature-title">AI Assistant</h3>
+            <p class="feature-desc">Ask questions about repositories, coding, GitHub, and open-source development with deep contextual awareness.</p>
+            <div class="feature-action">Open Chatbot &rarr;</div>
+          </div>
+
+          <div class="feature-card" data-navigate="triage">
+            <div class="feature-icon triage-icon">🐛</div>
+            <h3 class="feature-title">Issue Triage</h3>
+            <p class="feature-desc">Analyze GitHub issues and automatically classify their type, priority, labels, affected components, and difficulty.</p>
+            <div class="feature-action">Triage Issues &rarr;</div>
+          </div>
+
+          <div class="feature-card" data-navigate="review">
+            <div class="feature-icon review-icon">💻</div>
+            <h3 class="feature-title">Code Review</h3>
+            <p class="feature-desc">Paste code in any major programming language to receive AI-powered code quality, security, and refactoring insights.</p>
+            <div class="feature-action">Review Code &rarr;</div>
+          </div>
+
+          <div class="feature-card" data-navigate="guide">
+            <div class="feature-icon guide-icon">🚀</div>
+            <h3 class="feature-title">Contributor Guide</h3>
+            <p class="feature-desc">Get an 8-step actionable onboarding roadmap customized to the active repository to land your first pull request.</p>
+            <div class="feature-action">View Guide &rarr;</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 2: AI CHATBOT -->
+      <section id="tab-chat" class="tab-pane">
+        <div class="chat-container">
+          <div class="chat-header">
+            <div>
+              <h2 class="section-title">Open-Source AI Mentor</h2>
+              <p class="section-desc">Grounded in documentation, issues, and contributing guidelines of <strong id="chatRepoName">facebook/react</strong></p>
+            </div>
+            <div class="chat-header-actions">
+              <button class="btn btn-secondary btn-sm" id="btnClearChat">Clear History</button>
+            </div>
+          </div>
+
+          <div class="chat-messages" id="chatMessages">
+            <div class="message assistant">
+              <div class="message-avatar">🤖</div>
+              <div class="message-body">
+                <div class="message-meta">OpenSource AI Mentor • <span class="badge-mode">Ready</span></div>
+                <div class="message-content">
+                  Hello! I am your OpenSource AI mentor. Ask me anything about the codebase, finding beginner-friendly issues, navigating git workflows, or resolving technical bugs.
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Suggested Quick Prompts -->
+          <div class="quick-prompts">
+            <button class="quick-chip" data-prompt="How can I contribute to this repository?">How can I contribute to this repository?</button>
+            <button class="quick-chip" data-prompt="Which issues are beginner friendly?">Which issues are beginner friendly?</button>
+            <button class="quick-chip" data-prompt="What technologies does this project use?">What technologies does this project use?</button>
+            <button class="quick-chip" data-prompt="How do I create a clean pull request?">How do I create a clean pull request?</button>
+          </div>
+
+          <!-- Chat Input -->
+          <form class="chat-input-bar" id="chatForm">
+            <input type="text" id="chatInput" placeholder="Ask anything about this repository, code, or contributing..." autocomplete="off">
+            <button type="submit" class="btn btn-primary" id="btnSendChat">Send</button>
+          </form>
+        </div>
+      </section>
+
+      <!-- TAB 3: REPOSITORY ANALYZER -->
+      <section id="tab-repo" class="tab-pane">
+        <div class="repo-analyzer-view">
+          <div class="repo-header-card" id="repoHeaderCard">
+            <div class="repo-title-row">
+              <div>
+                <span class="repo-owner-tag" id="repoOwner">facebook</span> / 
+                <span class="repo-name-tag" id="repoName">react</span>
+              </div>
+              <div class="repo-stats-pills">
+                <span class="stat-pill">⭐ <strong id="repoStars">228,000</strong></span>
+                <span class="stat-pill">🍴 <strong id="repoForks">46,200</strong></span>
+                <span class="stat-pill">❗ <strong id="repoIssues">850</strong> Open</span>
+              </div>
+            </div>
+            <p class="repo-description" id="repoDesc">The library for web and native user interfaces.</p>
+            <div class="repo-meta-row">
+              <span class="meta-tag">Language: <strong id="repoLang">JavaScript</strong></span>
+              <span class="meta-tag">Activity: <strong id="repoActivity">Very Active</strong></span>
+              <span class="meta-tag">License: <strong id="repoLicense">MIT</strong></span>
+            </div>
+            <div class="topics-list" id="repoTopics"></div>
+          </div>
+
+          <!-- Documentation Tabs -->
+          <div class="doc-viewer-card">
+            <div class="doc-tabs">
+              <button class="doc-tab-btn active" data-doc="readme">README.md</button>
+              <button class="doc-tab-btn" data-doc="contributing">CONTRIBUTING.md</button>
+              <button class="doc-tab-btn" data-doc="conduct">CODE_OF_CONDUCT.md</button>
+              <button class="doc-tab-btn" data-doc="issues">Open Issues (<span id="issuesCountBadge">4</span>)</button>
+            </div>
+            <div class="doc-content" id="docViewerContent"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 4: ISSUE TRIAGE -->
+      <section id="tab-triage" class="tab-pane">
+        <div class="section-container">
+          <h2 class="section-title">Issue Triage & Classification Engine</h2>
+          <p class="section-desc">Classify issue severity, priority, type, difficulty, and get recommended next steps.</p>
+
+          <div class="triage-layout">
+            <div class="triage-input-card">
+              <div class="form-group">
+                <label>Select from Active Repository Issues (Optional)</label>
+                <select id="triageIssueSelect" class="form-control">
+                  <option value="">-- Choose an issue from active repository --</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label>Issue Title</label>
+                <input type="text" id="triageTitle" class="form-control" placeholder="e.g. Memory leak in useActionState hook during server render">
+              </div>
+
+              <div class="form-group">
+                <label>Issue Description / Error Logs</label>
+                <textarea id="triageDesc" class="form-control" rows="6" placeholder="Describe the problem, reproduction steps, error stack traces, and environment details..."></textarea>
+              </div>
+
+              <button class="btn btn-primary" id="btnRunTriage">Analyze & Triage Issue</button>
+            </div>
+
+            <!-- Triage Results Card -->
+            <div class="triage-result-card" id="triageResultCard">
+              <div class="empty-state" id="triageEmptyState">
+                <div class="empty-icon">🔍</div>
+                <h3>Awaiting Analysis</h3>
+                <p>Select an issue above or type in an issue description to classify its priority, difficulty, and affected components.</p>
+              </div>
+
+              <div class="result-details" id="triageDetails" style="display:none;">
+                <div class="result-header">
+                  <span class="badge badge-type" id="triageType">Bug</span>
+                  <span class="badge badge-priority" id="triagePriority">High Priority</span>
+                  <span class="badge badge-difficulty" id="triageDifficulty">Intermediate</span>
+                </div>
+
+                <div class="result-section">
+                  <h4>Summary</h4>
+                  <p id="triageSummary"></p>
+                </div>
+
+                <div class="result-section">
+                  <h4>Possible Affected Area</h4>
+                  <div class="affected-tag" id="triageAffectedArea"></div>
+                </div>
+
+                <div class="result-section">
+                  <h4>Suggested Labels</h4>
+                  <div class="labels-container" id="triageLabels"></div>
+                </div>
+
+                <div class="result-section">
+                  <h4>Recommended Next Steps</h4>
+                  <ul class="steps-list" id="triageSteps"></ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 5: CODE REVIEW -->
+      <section id="tab-review" class="tab-pane">
+        <div class="section-container">
+          <h2 class="section-title">AI Code Review & Quality Assurance</h2>
+          <p class="section-desc">Paste code in Python, JavaScript, TypeScript, Go, Java, C++, or C for automated review, bug detection, and refactoring.</p>
+
+          <div class="code-review-layout">
+            <div class="code-input-card">
+              <div class="review-inputs-header">
+                <div class="form-group-inline">
+                  <label for="codeLangSelect">Language</label>
+                  <select id="codeLangSelect" class="form-control">
+                    <option value="javascript">JavaScript</option>
+                    <option value="typescript">TypeScript</option>
+                    <option value="python">Python</option>
+                    <option value="go">Go</option>
+                    <option value="java">Java</option>
+                    <option value="cpp">C++</option>
+                    <option value="c">C</option>
+                  </select>
+                </div>
+                <div class="sample-code-buttons">
+                  <button class="btn btn-secondary btn-sm" id="btnLoadSampleCode">Load Sample</button>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label>Code to Review</label>
+                <textarea id="codeInput" class="form-control font-mono" rows="12" placeholder="// Paste source code here..."></textarea>
+              </div>
+
+              <div class="form-group">
+                <label>Optional Context / Description</label>
+                <input type="text" id="codeContextInput" class="form-control" placeholder="e.g. Refactored authentication middleware to support asynchronous JWT decoding">
+              </div>
+
+              <button class="btn btn-primary" id="btnRunReview">Review Code</button>
+            </div>
+
+            <!-- Code Review Results Card -->
+            <div class="code-result-card" id="codeResultCard">
+              <div class="empty-state" id="reviewEmptyState">
+                <div class="empty-icon">💻</div>
+                <h3>Awaiting Code Input</h3>
+                <p>Paste code or click "Load Sample" and press "Review Code" to generate an audit report with quality score and refactored snippets.</p>
+              </div>
+
+              <div class="result-details" id="reviewDetails" style="display:none;">
+                <div class="score-banner">
+                  <div class="score-circle" id="reviewScore">8/10</div>
+                  <div>
+                    <h3 class="score-title">Code Quality Assessment</h3>
+                    <p class="score-summary" id="reviewSummary"></p>
+                  </div>
+                </div>
+
+                <div class="result-section">
+                  <h4>Issues & Security Concerns</h4>
+                  <div id="reviewIssuesList" class="issues-audit-list"></div>
+                </div>
+
+                <div class="result-section">
+                  <h4>Improvement Suggestions</h4>
+                  <ul id="reviewSuggestionsList" class="suggestions-list"></ul>
+                </div>
+
+                <div class="result-section">
+                  <h4>Improved & Refactored Code</h4>
+                  <pre class="code-block"><code id="reviewImprovedCode"></code></pre>
+                  <button class="btn btn-secondary btn-sm copy-btn" id="btnCopyImprovedCode">Copy Code</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 6: CONTRIBUTOR ONBOARDING GUIDE -->
+      <section id="tab-guide" class="tab-pane">
+        <div class="section-container">
+          <div class="guide-header">
+            <h2 class="section-title">Contributor Onboarding Roadmap</h2>
+            <p class="section-desc">Follow this 8-step guide to navigate from newcomer to merged PR in <strong id="guideRepoName">facebook/react</strong>.</p>
+          </div>
+
+          <div class="roadmap-grid">
+            <div class="step-card">
+              <div class="step-num">1</div>
+              <div class="step-content">
+                <h3>Understand the Project</h3>
+                <p id="guideStep1Desc">React is a declarative, efficient, and flexible JavaScript library for building user interfaces.</p>
+                <div class="step-action-tag">Read Documentation</div>
+              </div>
+            </div>
+
+            <div class="step-card">
+              <div class="step-num">2</div>
+              <div class="step-content">
+                <h3>Set Up the Project</h3>
+                <p>Install dependencies and ensure initial test suite executes properly in your local developer environment.</p>
+                <pre class="snippet" id="guideSetupSnippet"><code>git clone https://github.com/facebook/react.git
+cd react
+npm install
+npm test</code></pre>
+              </div>
+            </div>
+
+            <div class="step-card">
+              <div class="step-num">3</div>
+              <div class="step-content">
+                <h3>Find a Beginner-Friendly Issue</h3>
+                <p>Look for issues tagged with <code>good first issue</code>, <code>help wanted</code>, or <code>documentation</code>.</p>
+                <div class="guide-issues-preview" id="guideIssuesPreview"></div>
+              </div>
+            </div>
+
+            <div class="step-card">
+              <div class="step-num">4</div>
+              <div class="step-content">
+                <h3>Create a Dedicated Branch</h3>
+                <p>Never make commits directly on <code>main</code> or <code>master</code>. Branch off with a concise descriptive name:</p>
+                <pre class="snippet" id="guideBranchSnippet"><code>git checkout -b fix/issue-101-anchor-link</code></pre>
+              </div>
+            </div>
+
+            <div class="step-card">
+              <div class="step-num">5</div>
+              <div class="step-content">
+                <h3>Make Changes & Adhere to Style</h3>
+                <p>Follow formatting conventions (Prettier/ESLint). Keep changes atomic and directly targeted to the issue.</p>
+                <div class="step-action-tag">Follow Code Guidelines</div>
+              </div>
+            </div>
+
+            <div class="step-card">
+              <div class="step-num">6</div>
+              <div class="step-content">
+                <h3>Test Your Changes</h3>
+                <p>Write tests covering new behaviors or regressions. Confirm that all repository linter and test checks pass:</p>
+                <pre class="snippet"><code>npm run test
+npm run lint</code></pre>
+              </div>
+            </div>
+
+            <div class="step-card">
+              <div class="step-num">7</div>
+              <div class="step-content">
+                <h3>Create the Pull Request</h3>
+                <p>Push your branch and open a PR with a clear summary, testing steps, and link the issue:</p>
+                <pre class="snippet"><code>Closes #101
+
+### Summary
+Fixed broken anchor link in the Quick Start guide.</code></pre>
+              </div>
+            </div>
+
+            <div class="step-card">
+              <div class="step-num">8</div>
+              <div class="step-content">
+                <h3>Respond to Review & Land It</h3>
+                <p>Maintainers will review your PR. Address feedback with grace, update your branch, and celebrate your open-source contribution!</p>
+                <div class="step-action-tag">Check GitHub Notifications</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- CONFIGURATION MODAL -->
+    <div class="modal-overlay" id="configModal">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3>API & Provider Settings</h3>
+          <button class="modal-close" id="closeConfigBtn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p class="modal-note">
+            <strong>OpenSource AI</strong> runs instantly with realistic datasets and simulated responses without any API keys.
+            Optionally provide your own keys to unlock live GitHub REST quotas and direct Google Gemini LLM generation.
+          </p>
+
+          <div class="form-group">
+            <label>Google Gemini API Key (Optional)</label>
+            <input type="password" id="inputGeminiKey" class="form-control" placeholder="AIzaSy...">
+            <span class="field-hint">Enables live Gemini 1.5 Flash generative AI responses for Chatbot, Triage, Search, and Code Review.</span>
+          </div>
+
+          <div class="form-group">
+            <label>GitHub Personal Access Token (Optional)</label>
+            <input type="password" id="inputGithubToken" class="form-control" placeholder="ghp_...">
+            <span class="field-hint">Increases GitHub REST API limits from 60 requests/hr to 5,000 requests/hr for any public repo.</span>
+          </div>
+
+          <div class="status-summary" id="configStatusSummary">
+            <div>Current Status: <strong id="statusSummaryText">Instant Mode Active</strong></div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" id="btnCancelConfig">Cancel</button>
+          <button class="btn btn-primary" id="btnSaveConfig">Save Settings</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div class="toast" id="toast"></div>
+  </div>
+
+  <!-- Client Knowledge Engine for 100% reliable offline/online operation -->
+  <script src="knowledge.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
