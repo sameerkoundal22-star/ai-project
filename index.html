@@ -30,40 +30,74 @@
         </div>
         <h2 class="auth-title">OpenSource AI</h2>
         <h3 class="auth-welcome">Welcome back</h3>
-        <p class="auth-subtitle">Sign in to continue</p>
+        <p class="auth-subtitle">Sign in with OTP</p>
       </div>
 
       <div id="loginAlert" class="auth-alert"></div>
 
-      <form id="loginForm" class="auth-form">
-        <div class="auth-form-group">
-          <label class="auth-label" for="loginEmail">Email / Username</label>
-          <div class="auth-input-wrapper">
-            <input type="text" id="loginEmail" class="auth-input" placeholder="developer@opensource.ai or username" required autocomplete="username">
-          </div>
-        </div>
-
-        <div class="auth-form-group">
-          <label class="auth-label" for="loginPassword">Password</label>
-          <div class="auth-input-wrapper">
-            <input type="password" id="loginPassword" class="auth-input" placeholder="Enter password" required autocomplete="current-password">
-          </div>
-        </div>
-
-        <button type="submit" id="btnLoginSubmit" class="auth-btn-submit">
-          <span>Login</span>
+      <!-- OTP Method Switcher: Mobile vs Email -->
+      <div class="otp-method-toggle" id="otpMethodToggle">
+        <button type="button" class="otp-toggle-btn active" id="btnMethodMobile" data-method="mobile">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+            <line x1="12" y1="18" x2="12.01" y2="18"></line>
+          </svg>
+          <span>Mobile Number</span>
         </button>
-        <div style="text-align: right; margin-top: 6px;">
-          <button type="button" id="btnForgotPwdTrigger" class="link-btn">Forgot Password?</button>
+        <button type="button" class="otp-toggle-btn" id="btnMethodEmail" data-method="email">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+            <polyline points="22,6 12,13 2,6"></polyline>
+          </svg>
+          <span>Email</span>
+        </button>
+      </div>
+
+      <!-- STEP 1: Enter Mobile / Email -->
+      <div id="otpStepInput" class="otp-step">
+        <div class="auth-form-group">
+          <label class="auth-label" id="lblOtpContact" for="otpContactInput">Mobile Number</label>
+          <div class="auth-input-wrapper">
+            <input type="tel" id="otpContactInput" class="auth-input" placeholder="+91 98765 43210" autocomplete="tel">
+          </div>
+          <p class="auth-help-text" id="otpContactHelp">We will send a 6-digit one-time password to verify.</p>
         </div>
-      </form>
+
+        <button type="button" id="btnSendOtp" class="auth-btn-submit">
+          <span>Send OTP</span>
+        </button>
+      </div>
+
+      <!-- STEP 2: Enter 6-digit OTP -->
+      <div id="otpStepVerify" class="otp-step" style="display: none;">
+        <div class="otp-target-display">
+          <span>Code sent to <strong id="otpTargetDisplayVal"></strong></span>
+          <button type="button" class="otp-change-btn" id="btnChangeTarget">Change</button>
+        </div>
+
+        <div class="auth-form-group">
+          <label class="auth-label" for="otpCodeInput">Enter OTP</label>
+          <div class="auth-input-wrapper">
+            <input type="text" id="otpCodeInput" class="auth-input otp-code-field" placeholder="• • • • • •" maxlength="6" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code">
+          </div>
+        </div>
+
+        <button type="button" id="btnVerifyOtp" class="auth-btn-submit">
+          <span>Verify OTP</span>
+        </button>
+
+        <div class="otp-resend-row">
+          <span id="resendTimerText" class="resend-timer-text">Resend OTP in <strong id="resendCountdown">30s</strong></span>
+          <button type="button" id="btnResendOtp" class="link-btn resend-btn" style="display: none;">Resend OTP</button>
+        </div>
+      </div>
 
       <!-- Clear Divider -->
       <div class="auth-divider">
         <span>OR</span>
       </div>
 
-      <!-- Permanent Guest Account Section -->
+      <!-- Permanent Guest Account Section (Untouched) -->
       <div class="guest-account-section">
         <div class="guest-section-header">
           <div class="guest-title">Continue as Guest</div>
@@ -804,55 +838,6 @@
 
   <!-- Client Knowledge Engine & Main App -->
   <script src="knowledge.js?v=901"></script>
-  <script src="app.js?v=950"></script>
-
-  <!-- FORGOT PASSWORD & RESET MODAL -->
-  <div class="modal-overlay" id="forgotModal">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h3 id="forgotModalTitle">Reset your password</h3>
-        <button class="modal-close" id="closeForgotModalBtn">&times;</button>
-      </div>
-      <div class="modal-body">
-        <div id="forgotStepRequest">
-          <p class="modal-desc" style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 16px;">
-            Enter the email address associated with your account and we'll help you reset your password.
-          </p>
-          <div id="forgotAlert" class="auth-alert"></div>
-          <form id="forgotPasswordForm">
-            <div class="form-group" style="margin-bottom: 16px;">
-              <label class="auth-label" for="forgotEmailInput">Email address</label>
-              <input type="email" id="forgotEmailInput" class="form-control" placeholder="name@company.com" required autocomplete="email">
-            </div>
-            <div style="display: flex; justify-content: flex-end; gap: 10px;">
-              <button type="button" class="btn btn-secondary" id="btnCancelForgot">Back to Login</button>
-              <button type="submit" class="btn btn-primary" id="btnSendResetLink">Send Reset Link</button>
-            </div>
-          </form>
-        </div>
-
-        <div id="forgotStepReset" style="display: none;">
-          <p class="modal-desc" style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 16px;">
-            Create a secure new password for your account.
-          </p>
-          <div id="resetAlert" class="auth-alert"></div>
-          <form id="newPasswordForm">
-            <div class="form-group" style="margin-bottom: 12px;">
-              <label class="auth-label" for="resetNewPassword">New Password</label>
-              <input type="password" id="resetNewPassword" class="form-control" placeholder="At least 6 characters" required autocomplete="new-password">
-            </div>
-            <div class="form-group" style="margin-bottom: 16px;">
-              <label class="auth-label" for="resetConfirmPassword">Confirm New Password</label>
-              <input type="password" id="resetConfirmPassword" class="form-control" placeholder="Repeat new password" required autocomplete="new-password">
-            </div>
-            <div style="display: flex; justify-content: flex-end; gap: 10px;">
-              <button type="submit" class="btn btn-primary" id="btnSaveNewPassword">Update Password</button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-  </div>
-
+  <script src="app.js?v=960"></script>
 </body>
 </html>
