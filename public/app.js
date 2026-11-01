@@ -344,8 +344,8 @@ async function analyzeRepository(repoSlugOrUrl) {
         topics: [name, 'developer-tools', 'open-source', 'community'],
         activity: 'Active contributions and updates',
         license: 'MIT',
-        readme: `# ${name}\n\nWelcome to the official repository for **${owner}/${name}**.\n\n## Quick Start\n```bash\ngit clone https://github.com/${owner}/${name}.git\ncd ${name}\nnpm install\nnpm test\n```\n\n## Architectural Overview\nThis project utilizes modern component and modular architectural design with continuous integration workflows.`,
-        contributing: `# Contributing to ${name}\n\n1. Fork the repo and create your feature branch.\n2. Ensure all unit tests pass locally (`npm test`).\n3. Adhere to repository coding style guidelines.\n4. Open a pull request with descriptive test steps.`,
+        readme: '# ' + name + '\n\nWelcome to the official repository for **' + owner + '/' + name + '**.\n\n## Quick Start\n```bash\ngit clone https://github.com/' + owner + '/' + name + '.git\ncd ' + name + '\nnpm install\nnpm test\n```\n\n## Architectural Overview\nThis project utilizes modern component and modular architectural design with continuous integration workflows.',
+        contributing: '# Contributing to ' + name + '\n\n1. Fork the repo and create your feature branch.\n2. Ensure all unit tests pass locally (`npm test`).\n3. Adhere to repository coding style guidelines.\n4. Open a pull request with descriptive test steps.',
         issues: [
           { id: 801, number: 14, title: `Documentation: Add getting started guides and API parameters for ${name}`, labels: ['good first issue', 'docs'], difficulty: 'Beginner' },
           { id: 802, number: 22, title: `Enhancement: Add automated regression test workflow`, labels: ['enhancement', 'ci'], difficulty: 'Intermediate' }
