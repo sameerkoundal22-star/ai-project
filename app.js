@@ -1,4 +1,5 @@
-// OpenSource AI - Complete Single-Page Application Client State & Handlers
+// OpenSource AI - Complete Single-Page Application Client State, Handlers & Authentication System
+let currentUser = null;
 let currentRepo = null;
 let currentDocTab = 'readme';
 
@@ -74,8 +75,11 @@ let navItems;
 let tabPanes;
 let toastEl;
 
-// Initialize
+// =========================================
+// INITIALIZATION & AUTH CHECK
+// =========================================
 document.addEventListener('DOMContentLoaded', () => {
+  setupAuthSystem();
   setupNavigation();
   setupHeroActions();
   setupUniversalSearch();
@@ -98,6 +102,328 @@ function showToast(message, duration = 3000) {
   toastEl.textContent = message;
   toastEl.classList.add('show');
   setTimeout(() => toastEl.classList.remove('show'), duration);
+}
+
+// =========================================
+// COMPLETE AUTHENTICATION FLOW
+// =========================================
+function setupAuthSystem() {
+  const authWrapper = document.getElementById('authWrapper');
+  const appLayout = document.getElementById('app');
+
+  const loginCard = document.getElementById('loginCard');
+  const registerCard = document.getElementById('registerCard');
+  const forgotCard = document.getElementById('forgotCard');
+
+  const loginAlert = document.getElementById('loginAlert');
+  const registerAlert = document.getElementById('registerAlert');
+  const forgotAlert = document.getElementById('forgotAlert');
+
+  // Form switches
+  document.getElementById('linkGoToRegister').addEventListener('click', () => {
+    loginCard.style.display = 'none';
+    forgotCard.style.display = 'none';
+    registerCard.style.display = 'block';
+    clearAlerts();
+  });
+
+  document.getElementById('linkGoToLogin').addEventListener('click', () => {
+    registerCard.style.display = 'none';
+    forgotCard.style.display = 'none';
+    loginCard.style.display = 'block';
+    clearAlerts();
+  });
+
+  document.getElementById('linkForgotPassword').addEventListener('click', () => {
+    loginCard.style.display = 'none';
+    registerCard.style.display = 'none';
+    forgotCard.style.display = 'block';
+    clearAlerts();
+  });
+
+  document.getElementById('linkForgotBackToLogin').addEventListener('click', () => {
+    forgotCard.style.display = 'none';
+    registerCard.style.display = 'none';
+    loginCard.style.display = 'block';
+    clearAlerts();
+  });
+
+  // Password visibility toggles
+  document.getElementById('toggleLoginPwd').addEventListener('click', () => {
+    const input = document.getElementById('loginPassword');
+    input.type = input.type === 'password' ? 'text' : 'password';
+  });
+
+  document.getElementById('toggleRegPwd').addEventListener('click', () => {
+    const input = document.getElementById('regPassword');
+    input.type = input.type === 'password' ? 'text' : 'password';
+  });
+
+  // 1. LOGIN FORM SUBMISSION
+  document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    const btnSubmit = document.getElementById('btnLoginSubmit');
+
+    if (!email || !password) {
+      showAuthAlert(loginAlert, 'Please complete all required fields.', 'error');
+      return;
+    }
+
+    btnSubmit.disabled = true;
+    btnSubmit.innerHTML = '<span>Signing in...</span>';
+    clearAlerts();
+
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        showAuthAlert(loginAlert, 'Authentication successful! Redirecting...', 'success');
+        localStorage.setItem('opensource_token', data.token);
+        localStorage.setItem('opensource_user', JSON.stringify(data.user));
+        setTimeout(() => enterDashboard(data.user), 400);
+        return;
+      } else {
+        showAuthAlert(loginAlert, data.error || 'Email or password is incorrect.', 'error');
+      }
+    } catch (err) {
+      // Fallback for static hosting (GitHub Pages) or offline mode
+      if (email === 'developer@opensource.ai' && password === 'Password123!') {
+        const fallbackUser = {
+          fullName: 'Developer Contributor',
+          username: 'developer',
+          email: 'developer@opensource.ai'
+        };
+        showAuthAlert(loginAlert, 'Authentication successful! Redirecting...', 'success');
+        localStorage.setItem('opensource_token', 'sess_demo_token');
+        localStorage.setItem('opensource_user', JSON.stringify(fallbackUser));
+        setTimeout(() => enterDashboard(fallbackUser), 400);
+        return;
+      } else {
+        showAuthAlert(loginAlert, 'Email or password is incorrect.', 'error');
+      }
+    } finally {
+      btnSubmit.disabled = false;
+      btnSubmit.innerHTML = '<span>Sign In</span>';
+    }
+  });
+
+  // 2. REGISTRATION FORM SUBMISSION
+  document.getElementById('registerForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fullName = document.getElementById('regFullName').value.trim();
+    const username = document.getElementById('regUsername').value.trim();
+    const email = document.getElementById('regEmail').value.trim();
+    const password = document.getElementById('regPassword').value;
+    const confirmPassword = document.getElementById('regConfirmPassword').value;
+    const btnSubmit = document.getElementById('btnRegisterSubmit');
+
+    if (!fullName || !username || !email || !password || !confirmPassword) {
+      showAuthAlert(registerAlert, 'Please complete all required fields.', 'error');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      showAuthAlert(registerAlert, 'Passwords do not match.', 'error');
+      return;
+    }
+
+    if (password.length < 6) {
+      showAuthAlert(registerAlert, 'Password must be at least 6 characters long.', 'error');
+      return;
+    }
+
+    btnSubmit.disabled = true;
+    btnSubmit.innerHTML = '<span>Creating account...</span>';
+    clearAlerts();
+
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fullName, username, email, password })
+      });
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        showAuthAlert(registerAlert, 'Account created successfully! Redirecting...', 'success');
+        localStorage.setItem('opensource_token', data.token);
+        localStorage.setItem('opensource_user', JSON.stringify(data.user));
+        setTimeout(() => enterDashboard(data.user), 400);
+        return;
+      } else {
+        showAuthAlert(registerAlert, data.error || 'Failed to create account.', 'error');
+      }
+    } catch (err) {
+      // Offline fallback
+      const newUser = { fullName, username, email };
+      showAuthAlert(registerAlert, 'Account created successfully! Redirecting...', 'success');
+      localStorage.setItem('opensource_token', 'sess_user_' + Date.now());
+      localStorage.setItem('opensource_user', JSON.stringify(newUser));
+      setTimeout(() => enterDashboard(newUser), 400);
+    } finally {
+      btnSubmit.disabled = false;
+      btnSubmit.innerHTML = '<span>Create Account</span>';
+    }
+  });
+
+  // 3. FORGOT PASSWORD SUBMISSION
+  document.getElementById('forgotForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = document.getElementById('forgotEmail').value.trim();
+    const btnSubmit = document.getElementById('btnForgotSubmit');
+
+    if (!email) {
+      showAuthAlert(forgotAlert, 'Please enter a valid email address.', 'error');
+      return;
+    }
+
+    btnSubmit.disabled = true;
+    btnSubmit.innerHTML = '<span>Sending request...</span>';
+
+    try {
+      await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email })
+      });
+    } catch (e) {}
+
+    showAuthAlert(forgotAlert, 'Reset link request recorded. (Email delivery infrastructure requires SMTP service configuration).', 'success');
+    btnSubmit.disabled = false;
+    btnSubmit.innerHTML = '<span>Send Reset Link</span>';
+  });
+
+  // 4. DEMO ACCOUNT LOGIN
+  document.getElementById('btnTryDemo').addEventListener('click', () => {
+    const demoUser = {
+      fullName: 'Developer Contributor',
+      username: 'developer',
+      email: 'developer@opensource.ai'
+    };
+    showAuthAlert(loginAlert, 'Signing in with Demo Account (Demo Mode)...', 'success');
+    localStorage.setItem('opensource_token', 'sess_demo_account');
+    localStorage.setItem('opensource_user', JSON.stringify(demoUser));
+    setTimeout(() => {
+      enterDashboard(demoUser);
+      showToast('Welcome, Developer! Active in Demo Mode.');
+    }, 350);
+  });
+
+  // 5. USER PROFILE DROPDOWN & LOGOUT
+  const userProfileBadge = document.getElementById('userProfileBadge');
+  const userMenuDropdown = document.getElementById('userMenuDropdown');
+
+  userProfileBadge.addEventListener('click', (e) => {
+    e.stopPropagation();
+    userMenuDropdown.classList.toggle('open');
+  });
+
+  document.addEventListener('click', () => {
+    userMenuDropdown.classList.remove('open');
+  });
+
+  document.getElementById('btnUserMenuProfile').addEventListener('click', () => {
+    userMenuDropdown.classList.remove('open');
+    showToast(`Logged in as ${currentUser?.fullName || 'Developer'} (${currentUser?.email || 'Active'})`);
+  });
+
+  document.getElementById('btnUserMenuSettings').addEventListener('click', () => {
+    userMenuDropdown.classList.remove('open');
+    document.getElementById('openConfigBtn').click();
+  });
+
+  document.getElementById('btnUserMenuLogout').addEventListener('click', () => {
+    performLogout();
+  });
+
+  document.getElementById('btnTopLogout').addEventListener('click', () => {
+    performLogout();
+  });
+
+  // Check saved session on startup
+  const savedToken = localStorage.getItem('opensource_token');
+  const savedUserData = localStorage.getItem('opensource_user');
+  if (savedToken && savedUserData) {
+    try {
+      const user = JSON.parse(savedUserData);
+      enterDashboard(user);
+    } catch (e) {
+      performLogout();
+    }
+  } else {
+    // Unauthenticated: ensure login page is visible and dashboard hidden
+    authWrapper.style.display = 'flex';
+    appLayout.style.display = 'none';
+  }
+
+  function clearAlerts() {
+    loginAlert.style.display = 'none';
+    registerAlert.style.display = 'none';
+    forgotAlert.style.display = 'none';
+  }
+
+  function showAuthAlert(el, msg, type) {
+    el.textContent = msg;
+    el.className = `auth-alert ${type}`;
+    el.style.display = 'block';
+  }
+
+  function enterDashboard(user) {
+    currentUser = user;
+    authWrapper.style.display = 'none';
+    appLayout.style.display = 'flex';
+
+    // Update Sidebar User Profile info
+    const nameEl = document.getElementById('sidebarUserName');
+    const emailEl = document.getElementById('sidebarUserEmail');
+    const avatarEl = document.getElementById('sidebarUserAvatar');
+
+    if (nameEl) nameEl.textContent = user.fullName || user.username;
+    if (emailEl) emailEl.textContent = user.email || 'developer@opensource.ai';
+    if (avatarEl) {
+      const initials = (user.fullName || user.username || 'DV')
+        .split(' ')
+        .map(n => n[0])
+        .slice(0, 2)
+        .join('')
+        .toUpperCase();
+      avatarEl.textContent = initials || 'DV';
+    }
+
+    switchTab('dashboard');
+  }
+
+  async function performLogout() {
+    const token = localStorage.getItem('opensource_token');
+    try {
+      if (token) {
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+      }
+    } catch (e) {}
+
+    localStorage.removeItem('opensource_token');
+    localStorage.removeItem('opensource_user');
+    currentUser = null;
+
+    appLayout.style.display = 'none';
+    authWrapper.style.display = 'flex';
+    loginCard.style.display = 'block';
+    registerCard.style.display = 'none';
+    forgotCard.style.display = 'none';
+    clearAlerts();
+
+    showToast('You have been logged out.');
+  }
 }
 
 // Navigation Setup
