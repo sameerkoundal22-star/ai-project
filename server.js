@@ -58,25 +58,25 @@ const server = http.createServer(async (req, res) => {
     return res.end();
   }
 
-  // --- AUTHENTICATION API ENDPOINTS ---
+  // --- AUTHENTICATION API ENDPOINTS (SECURE OTP & SESSIONS) ---
 
-  // POST /api/auth/register
-  if (pathname === '/api/auth/register' && method === 'POST') {
+  // POST /api/auth/send-otp
+  if (pathname === '/api/auth/send-otp' && method === 'POST') {
     try {
       const body = await parseBody(req);
-      const result = authService.register(body);
-      return sendJSON(res, 201, { success: true, user: result.user, token: result.token });
+      const result = await authService.requestOtp(body);
+      return sendJSON(res, 200, result);
     } catch (err) {
       return sendJSON(res, 400, { success: false, error: err.message });
     }
   }
 
-  // POST /api/auth/login
-  if (pathname === '/api/auth/login' && method === 'POST') {
+  // POST /api/auth/verify-otp
+  if (pathname === '/api/auth/verify-otp' && method === 'POST') {
     try {
       const body = await parseBody(req);
-      const result = authService.login(body);
-      return sendJSON(res, 200, { success: true, user: result.user, token: result.token });
+      const result = await authService.verifyOtp(body);
+      return sendJSON(res, 200, result);
     } catch (err) {
       return sendJSON(res, 400, { success: false, error: err.message });
     }
@@ -99,19 +99,6 @@ const server = http.createServer(async (req, res) => {
     const token = authHeader.replace(/^Bearer\s+/i, '');
     authService.logout(token);
     return sendJSON(res, 200, { success: true, message: 'Logged out' });
-  }
-
-  // POST /api/auth/forgot-password
-  if (pathname === '/api/auth/forgot-password' && method === 'POST') {
-    const body = await parseBody(req);
-    const { email } = body;
-    if (!email) {
-      return sendJSON(res, 400, { success: false, error: 'Please enter your email address.' });
-    }
-    return sendJSON(res, 200, {
-      success: true,
-      message: 'Password reset request recorded. Note: Email service provider requires configuration in production settings.'
-    });
   }
 
   // --- EXISTING AI & GITHUB ENDPOINTS ---
