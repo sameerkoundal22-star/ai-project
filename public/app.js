@@ -279,10 +279,39 @@ function setupNavigation() {
   tabPanes = document.querySelectorAll('.tab-pane');
   toastEl = document.getElementById('toast');
 
+  // Mobile drawer elements
+  const btnMobileToggle = document.getElementById('btnMobileNavToggle');
+  const btnCloseSidebar = document.getElementById('btnCloseSidebar');
+  const sidebarBackdrop = document.getElementById('sidebarBackdrop');
+  const appSidebar = document.getElementById('appSidebar');
+
+  function openMobileMenu() {
+    if (appSidebar) appSidebar.classList.add('mobile-open');
+    if (sidebarBackdrop) sidebarBackdrop.classList.add('mobile-open');
+    document.body.classList.add('sidebar-open');
+  }
+
+  function closeMobileMenu() {
+    if (appSidebar) appSidebar.classList.remove('mobile-open');
+    if (sidebarBackdrop) sidebarBackdrop.classList.remove('mobile-open');
+    document.body.classList.remove('sidebar-open');
+  }
+
+  if (btnMobileToggle) {
+    btnMobileToggle.addEventListener('click', openMobileMenu);
+  }
+  if (btnCloseSidebar) {
+    btnCloseSidebar.addEventListener('click', closeMobileMenu);
+  }
+  if (sidebarBackdrop) {
+    sidebarBackdrop.addEventListener('click', closeMobileMenu);
+  }
+
   navItems.forEach(item => {
     item.addEventListener('click', () => {
       const targetTab = item.getAttribute('data-tab');
       switchTab(targetTab);
+      closeMobileMenu(); // Auto close on selection
     });
   });
 
@@ -290,6 +319,7 @@ function setupNavigation() {
     card.addEventListener('click', () => {
       const tab = card.getAttribute('data-navigate');
       switchTab(tab);
+      closeMobileMenu();
     });
   });
 
@@ -299,6 +329,7 @@ function setupNavigation() {
       const input = document.getElementById('repoUrlInput');
       if (input) input.value = slug;
       analyzeRepository(slug);
+      closeMobileMenu();
     });
   });
 
@@ -309,6 +340,7 @@ function setupNavigation() {
       const input = document.getElementById('repoUrlInput');
       if (input) input.value = repo;
       analyzeRepository(repo);
+      closeMobileMenu();
     });
   });
 }
@@ -328,10 +360,18 @@ function switchTab(tabId) {
   tabPanes.forEach(pane => {
     if (pane.id === `tab-${tabId}`) {
       pane.classList.add('active');
+      pane.scrollTop = 0; // Scroll to top on mobile tab switch
     } else {
       pane.classList.remove('active');
     }
   });
+
+  // Ensure mobile menu closes whenever tab changes
+  const appSidebar = document.getElementById('appSidebar');
+  const sidebarBackdrop = document.getElementById('sidebarBackdrop');
+  if (appSidebar) appSidebar.classList.remove('mobile-open');
+  if (sidebarBackdrop) sidebarBackdrop.classList.remove('mobile-open');
+  document.body.classList.remove('sidebar-open');
 }
 
 // Hero Action Buttons

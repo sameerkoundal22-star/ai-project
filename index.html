@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=905">
   <!-- Markdown parser -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
@@ -61,8 +61,34 @@
        (Protected - Only visible after login)
        ========================================= -->
   <div id="app" class="app-layout" style="display: none;">
+    <!-- Compact Mobile Header -->
+    <header class="mobile-header">
+      <div class="mobile-header-brand">
+        <div class="brand-logo">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <circle cx="12" cy="12" r="9"></circle>
+            <path d="M12 3a9 9 0 0 1 9 9"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+        </div>
+        <span class="mobile-header-title">OpenSource AI</span>
+      </div>
+      <div class="mobile-header-actions">
+        <button class="mobile-menu-toggle" id="btnMobileNavToggle" aria-label="Toggle Navigation Menu">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Sidebar Backdrop for Mobile -->
+    <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
     <!-- Sidebar / Navigation -->
-    <aside class="sidebar">
+    <aside class="sidebar" id="appSidebar">
       <div class="brand">
         <div class="brand-logo">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
@@ -75,6 +101,7 @@
           <h1>OpenSource AI</h1>
           <p>Understand. Contribute. Build.</p>
         </div>
+        <button class="sidebar-close-btn" id="btnCloseSidebar" aria-label="Close menu">&times;</button>
       </div>
 
       <!-- Navigation Menu -->
@@ -837,6 +864,6 @@ Fixes #28410
 
   <!-- Client Knowledge Engine & Main App -->
   <script src="knowledge.js?v=901"></script>
-  <script src="app.js?v=901"></script>
+  <script src="app.js?v=905"></script>
 </body>
 </html>
