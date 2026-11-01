@@ -500,6 +500,86 @@ Fixed broken anchor link in the Quick Start guide.</code></pre>
           </div>
         </div>
       </section>
+    
+      <!-- TAB 6: PULL REQUEST & COMMIT GENERATOR -->
+      <section id="tab-prgen" class="tab-pane">
+        <div class="panel-header">
+          <div class="panel-title-group">
+            <h2>PR & Conventional Commit Generator</h2>
+            <p>Draft professional pull requests that open-source maintainers love and merge quickly.</p>
+          </div>
+        </div>
+
+        <div class="grid-2-col">
+          <div class="card">
+            <h3 class="card-title">Contribution Details</h3>
+            <div class="form-group">
+              <label>PR Type</label>
+              <select id="prTypeSelect" class="form-control">
+                <option value="fix">fix: Bug Fix (patches an issue)</option>
+                <option value="feat">feat: New Feature (adds functionality)</option>
+                <option value="docs">docs: Documentation Update</option>
+                <option value="perf">perf: Performance Optimization</option>
+                <option value="refactor">refactor: Code Refactoring</option>
+                <option value="test">test: Adding Missing Tests</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Module / Scope (Optional)</label>
+              <input type="text" id="prScopeInput" class="form-control" placeholder="e.g. auth, router, core, hooks">
+            </div>
+            <div class="form-group">
+              <label>Issue Title or Reference #</label>
+              <input type="text" id="prIssueInput" class="form-control" placeholder="e.g. Fixes #28410: Null check on unmounted ref">
+            </div>
+            <div class="form-group">
+              <label>What changed and why?</label>
+              <textarea id="prSummaryInput" class="form-control" rows="4" placeholder="Briefly describe what was broken and how your solution fixes it..."></textarea>
+            </div>
+            <div class="form-group">
+              <label>How did you verify this?</label>
+              <input type="text" id="prTestingInput" class="form-control" placeholder="e.g. Ran yarn test --watch, added 2 unit test cases">
+            </div>
+            <div class="form-actions">
+              <button class="btn btn-secondary" id="btnLoadSamplePR">Load Sample PR</button>
+              <button class="btn btn-primary" id="btnGeneratePR">Generate Professional PR</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header-flex">
+              <h3 class="card-title">Generated Pull Request</h3>
+              <button class="btn btn-secondary btn-sm" id="btnCopyPRMarkdown">Copy Markdown</button>
+            </div>
+            
+            <div class="form-group">
+              <label>Conventional Commit Message</label>
+              <div class="commit-box" id="prCommitResult" style="padding: 10px 14px; background: #0f172a; color: #38bdf8; border-radius: 8px; font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; margin-bottom: 12px;">
+                fix(core): resolve null pointer exception when accessing unmounted ref
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label>Formatted PR Body</label>
+              <pre class="snippet" id="prBodyResult" style="min-height: 220px; max-height: 380px; overflow-y: auto; white-space: pre-wrap; font-size: 0.85rem; padding: 14px; border-radius: 8px; background: #0f172a; color: #f8fafc;">
+### 📝 Description
+Resolved null pointer exception occurring when `ref.current` was accessed after unmounting.
+
+### 🔗 Related Issue
+Fixes #28410
+
+### 🛠️ Solution Details
+- Added defensive conditional check before executing property lookup.
+- Added regression test covering rapid mount/unmount cycle.
+
+### ✅ Verification Steps
+1. Executed `yarn test` across core test runner suite.
+2. Verified 0 memory leaks in React devtools profiler.
+              </pre>
+            </div>
+          </div>
+        </div>
+      </section>
     </main>
 
     <!-- CONFIGURATION MODAL -->
