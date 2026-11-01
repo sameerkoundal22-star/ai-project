@@ -689,11 +689,11 @@ function setupCodeReview() {
     if (window.CLIENT_KNOWLEDGE) {
       const fallbackRev = window.CLIENT_KNOWLEDGE.review(code, langSelect.value);
       displayCodeReviewResult({
-        score: Math.round(fallbackRev.score / 10),
+        score: fallbackRev.score,
         summary: fallbackRev.summary,
         issues: fallbackRev.issues.map(i => ({
           severity: i.severity === 'Critical' ? 'high' : i.severity === 'Warning' ? 'medium' : 'low',
-          category: i.title,
+          category: i.category || i.title,
           explanation: `${i.description} Fix: ${i.fix}`
         })),
         suggestions: [

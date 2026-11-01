@@ -337,12 +337,6 @@ const CLIENT_KNOWLEDGE = {
   }
 };
 
-<<<<<<< HEAD
-
-if (typeof window !== 'undefined') {
-  window.CLIENT_KNOWLEDGE = CLIENT_KNOWLEDGE;
-}
-=======
 // Global export
 if (typeof window !== 'undefined') {
   window.CLIENT_KNOWLEDGE = CLIENT_KNOWLEDGE;
@@ -350,4 +344,3 @@ if (typeof window !== 'undefined') {
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = CLIENT_KNOWLEDGE;
 }
->>>>>>> main
