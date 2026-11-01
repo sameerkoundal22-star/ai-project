@@ -60,6 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupTriage();
   setupCodeReview();
   setupConfigModal();
+  setupPRGenerator();
 
   // Load default repository
   analyzeRepository('facebook/react');
@@ -837,4 +838,72 @@ function setupConfigModal() {
 function escapeHtml(text) {
   const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
   return text.replace(/[&<>"']/g, m => map[m]);
+}
+
+
+// PR & Commit Message Generator Handler
+function setupPRGenerator() {
+  const typeSelect = document.getElementById('prTypeSelect');
+  const scopeInput = document.getElementById('prScopeInput');
+  const issueInput = document.getElementById('prIssueInput');
+  const summaryInput = document.getElementById('prSummaryInput');
+  const testingInput = document.getElementById('prTestingInput');
+  const btnGenerate = document.getElementById('btnGeneratePR');
+  const btnLoadSample = document.getElementById('btnLoadSamplePR');
+  const btnCopy = document.getElementById('btnCopyPRMarkdown');
+  const commitResult = document.getElementById('prCommitResult');
+  const bodyResult = document.getElementById('prBodyResult');
+
+  if (!btnGenerate) return;
+
+  btnLoadSample.addEventListener('click', () => {
+    typeSelect.value = 'fix';
+    scopeInput.value = 'core/hooks';
+    issueInput.value = 'Fixes #28410: Null pointer exception during unmount phase';
+    summaryInput.value = 'When rapid unmounting occurs while an asynchronous state transition is in-flight, ref.current dereferences undefined. Added defensive boundary checks and associated test cases.';
+    testingInput.value = 'Executed npm test with 100% assertion pass rate. Added 2 regression test specs.';
+    btnGenerate.click();
+  });
+
+  btnGenerate.addEventListener('click', () => {
+    const type = typeSelect.value || 'fix';
+    const scope = scopeInput.value.trim();
+    const issue = issueInput.value.trim() || 'Closes #000';
+    const summary = summaryInput.value.trim() || 'Add targeted improvements to codebase.';
+    const testing = testingInput.value.trim() || 'Ran test suite locally; verified clean pass.';
+
+    const scopeStr = scope ? `(${scope})` : '';
+    const cleanTitle = issue.replace(/^fixess*#?d+:?s*/i, '').replace(/^closess*#?d+:?s*/i, '');
+    const commitMsg = `${type}${scopeStr}: ${cleanTitle.toLowerCase() || 'resolve issue'}`;
+    commitResult.textContent = commitMsg;
+
+    const markdownPR = `### 📝 Summary of Changes
+${summary}
+
+### 🔗 Related Issue
+${issue.startsWith('Fixes') || issue.startsWith('Closes') ? issue : 'Fixes #' + issue}
+
+### 🛠️ Technical Details & Architectural Impact
+- Scope: `${scope || 'general'}`
+- Conventional Commit: \`${commitMsg}\`
+- Target Branch: \`main\`
+
+### ✅ Verification & Quality Assurance
+- [x] Code passes project linting rules (`npm run lint`)
+- [x] Unit test suites pass without warnings (`npm test`)
+- [x] Verification summary: ${testing}
+
+---
+*Generated with OpenSource AI Platform*`;
+
+    bodyResult.textContent = markdownPR;
+    showToast('Generated professional Pull Request template!');
+  });
+
+  btnCopy.addEventListener('click', () => {
+    const text = `Commit:\n${commitResult.textContent}\n\n${bodyResult.textContent}`;
+    navigator.clipboard.writeText(text).then(() => {
+      showToast('Copied PR and Commit message to clipboard!');
+    });
+  });
 }
