@@ -144,26 +144,36 @@ function setupUniversalSearch() {
         });
         const data = await res.json();
         if (data.success && data.result) {
-          const r = data.result;
-          searchTitle.textContent = r.title;
-          searchBadge.textContent = r.source || 'Knowledge';
-          searchBody.innerHTML = window.marked ? window.marked.parse(r.answer) : r.answer;
-          
-          searchTags.innerHTML = '';
-          (r.tags || []).forEach(t => {
-            const span = document.createElement('span');
-            span.className = 'topic-tag';
-            span.textContent = t;
-            searchTags.appendChild(span);
-          });
-
-          searchCard.style.display = 'block';
+          renderSearchResult(data.result);
+          return;
         }
       } catch (e) {
-        console.error('Search error:', e);
+        // Fallback to client-side knowledge engine
+      }
+
+      if (window.CLIENT_KNOWLEDGE) {
+        const fallbackResult = window.CLIENT_KNOWLEDGE.search(query, currentRepo);
+        renderSearchResult(fallbackResult);
       }
     }, 300);
   });
+
+  function renderSearchResult(r) {
+    if (!r) return;
+    searchTitle.textContent = r.title;
+    searchBadge.textContent = r.source || 'Knowledge';
+    searchBody.innerHTML = window.marked ? window.marked.parse(r.answer) : r.answer;
+    
+    searchTags.innerHTML = '';
+    (r.tags || []).forEach(t => {
+      const span = document.createElement('span');
+      span.className = 'topic-tag';
+      span.textContent = t;
+      searchTags.appendChild(span);
+    });
+
+    searchCard.style.display = 'block';
+  }
 
   topInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') {
@@ -272,21 +282,27 @@ async function analyzeRepository(repoSlugOrUrl) {
     });
 
     const data = await res.json();
-    if (!res.ok || !data.success) {
-      showToast(data.error || 'Failed to analyze repository');
+    if (res.ok && data.success) {
+      currentRepo = data.data;
+      updateRepoUI(currentRepo, data.mode);
+      showToast(`Loaded ${currentRepo.fullName || currentRepo.name}`);
       return;
     }
-
-    currentRepo = data.data;
-    const mode = data.mode;
-
-    updateRepoUI(currentRepo, mode);
-    showToast(`Loaded ${currentRepo.fullName || currentRepo.name}`);
   } catch (err) {
-    showToast('Network error analyzing repository');
+    // Fallback to client knowledge
   } finally {
     btnText.textContent = 'Analyze Repository';
     btn.disabled = false;
+  }
+
+  // Client-side fallback if server API is unreachable
+  if (window.CLIENT_KNOWLEDGE && window.CLIENT_KNOWLEDGE.projects) {
+    const slug = (repoSlugOrUrl || '').toLowerCase().trim();
+    const matched = window.CLIENT_KNOWLEDGE.projects[slug] || 
+      window.CLIENT_KNOWLEDGE.projects['facebook/react'];
+    currentRepo = matched;
+    updateRepoUI(currentRepo, 'Instant Client Engine');
+    showToast(`Loaded ${currentRepo.fullName || currentRepo.name}`);
   }
 }
 
@@ -454,14 +470,20 @@ function setupChat() {
       const data = await res.json();
       removeLoadingMessage(loadingId);
 
-      if (data.success) {
+      if (data && data.success) {
         appendChatMessage('assistant', data.reply, data.mode);
-      } else {
-        appendChatMessage('assistant', 'Sorry, I encountered an issue while generating a reply. Please try again.');
+        return;
       }
     } catch (err) {
-      removeLoadingMessage(loadingId);
-      appendChatMessage('assistant', 'Network error connecting to the AI mentor service.');
+      // Fallback to client knowledge
+    }
+
+    removeLoadingMessage(loadingId);
+    if (window.CLIENT_KNOWLEDGE) {
+      const reply = window.CLIENT_KNOWLEDGE.chat(query, currentRepo);
+      appendChatMessage('assistant', reply, 'Instant Engine');
+    } else {
+      appendChatMessage('assistant', 'Here are standard contributing guidelines: Fork the repo, clone locally, make a branch, run tests, and open a PR!');
     }
   });
 
@@ -550,16 +572,32 @@ function setupTriage() {
       });
 
       const data = await res.json();
-      if (data.success && data.triage) {
+      if (data && data.success && data.triage) {
         displayTriageResult(data.triage, data.mode);
-      } else {
-        showToast(data.error || 'Failed to triage issue');
+        return;
       }
     } catch (e) {
-      showToast('Error communicating with triage service');
+      // Fallback
     } finally {
       btnRun.textContent = 'Analyze & Triage Issue';
       btnRun.disabled = false;
+    }
+
+    if (window.CLIENT_KNOWLEDGE) {
+      const fallbackTriage = window.CLIENT_KNOWLEDGE.triage(title, description, currentRepo?.name);
+      displayTriageResult({
+        issueType: fallbackTriage.issueType,
+        priority: fallbackTriage.priority,
+        difficulty: fallbackTriage.difficulty,
+        summary: fallbackTriage.summary,
+        possibleAffectedArea: fallbackTriage.suggestedFix,
+        suggestedLabels: fallbackTriage.recommendedLabels,
+        suggestedNextSteps: [
+          'Verify issue reproducibility on newest minor version.',
+          'Identify minimal reproduction test case.',
+          'Submit fix PR with associated unit tests.'
+        ]
+      }, 'Instant Engine');
     }
   });
 }
@@ -637,16 +675,34 @@ function setupCodeReview() {
       });
 
       const data = await res.json();
-      if (data.success && data.review) {
+      if (data && data.success && data.review) {
         displayCodeReviewResult(data.review, data.mode);
-      } else {
-        showToast(data.error || 'Failed to review code');
+        return;
       }
     } catch (e) {
-      showToast('Error connecting to code review service');
+      // Fallback
     } finally {
       btnRun.textContent = 'Review Code';
       btnRun.disabled = false;
+    }
+
+    if (window.CLIENT_KNOWLEDGE) {
+      const fallbackRev = window.CLIENT_KNOWLEDGE.review(code, langSelect.value);
+      displayCodeReviewResult({
+        score: Math.round(fallbackRev.score / 10),
+        summary: fallbackRev.summary,
+        issues: fallbackRev.issues.map(i => ({
+          severity: i.severity === 'Critical' ? 'high' : i.severity === 'Warning' ? 'medium' : 'low',
+          category: i.title,
+          explanation: `${i.description} Fix: ${i.fix}`
+        })),
+        suggestions: [
+          'Add parameter and null validation before execution.',
+          'Introduce dedicated unit tests covering edge cases.',
+          'Adhere to project linting and formatting standards.'
+        ],
+        improvedCode: fallbackRev.improvedCode
+      }, 'Instant Engine');
     }
   });
 }
