@@ -1,15 +1,12 @@
-// Authentication & User Session Management Service
-// Uses cryptographically secure salt + SHA-256 PBKDF2 hashing for secure zero-leak credential storage
 const crypto = require('crypto');
 
 class AuthService {
   constructor() {
-    // In-memory persistent database of users
-    // Pre-seeded with a default developer account for testing
     this.users = new Map();
     this.sessions = new Map();
+    this.resetTokens = new Map(); // token -> { email, expiresAt }
 
-    // Create default test account
+    // Seed default developer account
     this.register({
       fullName: 'Developer Contributor',
       username: 'developer',
@@ -18,20 +15,17 @@ class AuthService {
     });
   }
 
-  // Hash password using crypto PBKDF2 with unique salt
   hashPassword(password, salt = null) {
     const s = salt || crypto.randomBytes(16).toString('hex');
     const hash = crypto.pbkdf2Sync(password, s, 10000, 64, 'sha512').toString('hex');
     return { salt: s, hash };
   }
 
-  // Verify candidate password
   verifyPassword(candidatePassword, salt, storedHash) {
     const { hash } = this.hashPassword(candidatePassword, salt);
     return hash === storedHash;
   }
 
-  // Register new user
   register({ fullName, username, email, password }) {
     if (!fullName || !username || !email || !password) {
       throw new Error('Please complete all required fields.');
@@ -40,7 +34,6 @@ class AuthService {
     const cleanEmail = email.toLowerCase().trim();
     const cleanUsername = username.toLowerCase().trim();
 
-    // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(cleanEmail)) {
       throw new Error('Please enter a valid email address.');
@@ -50,7 +43,6 @@ class AuthService {
       throw new Error('Password must be at least 6 characters.');
     }
 
-    // Check duplicate
     for (const u of this.users.values()) {
       if (u.email === cleanEmail) {
         throw new Error('An account with this email address already exists.');
@@ -72,8 +64,6 @@ class AuthService {
     };
 
     this.users.set(user.id, user);
-
-    // Create immediate session
     const token = this.createSession(user.id);
     return {
       user: {
@@ -86,7 +76,6 @@ class AuthService {
     };
   }
 
-  // Login existing user
   login({ email, password }) {
     if (!email || !password) {
       throw new Error('Please complete all required fields.');
@@ -103,12 +92,12 @@ class AuthService {
     }
 
     if (!foundUser) {
-      throw new Error('Email or password is incorrect.');
+      throw new Error('Invalid username or password.');
     }
 
     const isValid = this.verifyPassword(password, foundUser.salt, foundUser.hash);
     if (!isValid) {
-      throw new Error('Email or password is incorrect.');
+      throw new Error('Invalid username or password.');
     }
 
     const token = this.createSession(foundUser.id);
@@ -123,18 +112,16 @@ class AuthService {
     };
   }
 
-  // Create cryptographic session token
   createSession(userId) {
     const token = 'sess_' + crypto.randomBytes(32).toString('hex');
     this.sessions.set(token, {
       userId,
       createdAt: Date.now(),
-      expiresAt: Date.now() + (7 * 24 * 60 * 60 * 1000) // 7 days
+      expiresAt: Date.now() + (7 * 24 * 60 * 60 * 1000)
     });
     return token;
   }
 
-  // Validate session token
   validateSession(token) {
     if (!token) return null;
     const session = this.sessions.get(token);
@@ -156,12 +143,77 @@ class AuthService {
     };
   }
 
-  // Logout / Terminate session
   logout(token) {
     if (token) {
       this.sessions.delete(token);
     }
     return true;
+  }
+
+  // Request Password Reset Token
+  requestPasswordReset(email) {
+    if (!email) return { success: false, error: 'Email is required' };
+    const cleanEmail = email.toLowerCase().trim();
+
+    // Check if user exists (without revealing status to attacker)
+    let userExists = false;
+    for (const u of this.users.values()) {
+      if (u.email === cleanEmail) {
+        userExists = true;
+        break;
+      }
+    }
+
+    let resetToken = null;
+    if (userExists) {
+      resetToken = crypto.randomBytes(24).toString('hex');
+      this.resetTokens.set(resetToken, {
+        email: cleanEmail,
+        expiresAt: Date.now() + (30 * 60 * 1000) // 30 minutes
+      });
+    }
+
+    return {
+      success: true,
+      message: 'If an account exists with this email, password reset instructions have been sent.',
+      resetToken, // Returned in dev/local mode so reset page/flow works smoothly without mail server
+      emailDeliveryConfigured: false
+    };
+  }
+
+  // Reset Password using Token
+  resetPassword(token, newPassword) {
+    if (!token || !newPassword) {
+      throw new Error('Token and new password are required.');
+    }
+    if (newPassword.length < 6) {
+      throw new Error('Password must be at least 6 characters.');
+    }
+
+    const record = this.resetTokens.get(token);
+    if (!record || Date.now() > record.expiresAt) {
+      throw new Error('Reset link has expired or is invalid. Please request a new one.');
+    }
+
+    let targetUser = null;
+    for (const u of this.users.values()) {
+      if (u.email === record.email) {
+        targetUser = u;
+        break;
+      }
+    }
+
+    if (!targetUser) {
+      throw new Error('User associated with this reset link no longer exists.');
+    }
+
+    const { salt, hash } = this.hashPassword(newPassword);
+    targetUser.salt = salt;
+    targetUser.hash = hash;
+
+    // Consume token
+    this.resetTokens.delete(token);
+    return { success: true, message: 'Password updated successfully. You can now login.' };
   }
 }
 

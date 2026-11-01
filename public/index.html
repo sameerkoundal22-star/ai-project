@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=910">
+  <link rel="stylesheet" href="style.css?v=950">
   <!-- Markdown parser -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
@@ -53,6 +53,9 @@
         <button type="submit" id="btnLoginSubmit" class="auth-btn-submit">
           <span>Login</span>
         </button>
+        <div style="text-align: right; margin-top: 6px;">
+          <button type="button" id="btnForgotPwdTrigger" class="link-btn">Forgot Password?</button>
+        </div>
       </form>
 
       <!-- Clear Divider -->
@@ -155,10 +158,7 @@
           <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
           GitHub Insights
         </button>
-        <button class="nav-item" data-tab="prgen">
-          <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"></circle><circle cx="6" cy="6" r="3"></circle><path d="M13 6h3a2 2 0 0 1 2 2v7"></path><line x1="6" y1="9" x2="6" y2="21"></line></svg>
-          PR Generator
-        </button>
+
       </nav>
 
       <!-- Active Target Card -->
@@ -441,7 +441,7 @@
             <h3 class="card-title">Technology Stack & Setup</h3>
             <div class="form-group">
               <label>Tech Stack</label>
-              <div id="repoTechStack" class="commit-box" style="padding: 10px; background: #0B1222; border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: #818CF8;">
+              <div id="repoTechStack" class="commit-box" style="padding: 10px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--accent);">
                 JavaScript, JSX, Flow, TypeScript, Rollup, Jest
               </div>
             </div>
@@ -513,7 +513,7 @@
               </div>
               <div class="form-group">
                 <label>Affected Component & Possible Cause</label>
-                <div id="triageAffectedArea" style="font-size: 0.85rem; padding: 10px; background: #0B1222; border-radius: 6px; color: #E2E8F0;">
+                <div id="triageAffectedArea" style="font-size: 0.85rem; padding: 10px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-main);">
                   Awaiting input analysis...
                 </div>
               </div>
@@ -557,7 +557,7 @@
               </select>
             </div>
             <div class="form-group">
-              <textarea id="codeInput" class="form-control font-mono" rows="12" style="font-size: 0.85rem; background: #090D16;" placeholder="// Paste your function or module here for automated security & code quality review..."></textarea>
+              <textarea id="codeInput" class="form-control font-mono" rows="12" style="font-size: 0.85rem; background: var(--bg-input); color: var(--text-main); border: 1px solid var(--border-color);" placeholder="// Paste your function or module here for automated security & code quality review..."></textarea>
             </div>
             <div class="form-group">
               <label>Optional Context / Description</label>
@@ -749,7 +749,7 @@
             <p style="font-size: 0.88rem; line-height: 1.6; color: var(--text-secondary); margin-bottom: 14px;">
               Maintainers prioritize atomic PRs with comprehensive automated test fixtures. Issues tagged <code>good first issue</code> have an average merge turnaround time of 48 hours.
             </p>
-            <div style="padding: 12px; background: #0B1222; border-radius: 8px; font-size: 0.82rem; color: #94A3B8;">
+            <div style="padding: 12px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.85rem; color: var(--text-secondary);">
               💡 <strong>Maintainer Tip:</strong> Before tackling intermediate or advanced tickets, submit 1-2 documentation or test polish pull requests to build trust with the core team.
             </div>
           </div>
@@ -766,90 +766,6 @@
         </div>
       </section>
 
-      <!-- TAB 8: PR GENERATOR -->
-      <section id="tab-prgen" class="tab-pane">
-        <div class="panel-header">
-          <div class="panel-title-group">
-            <h2>PR & Conventional Commit Generator</h2>
-            <p>Draft professional pull requests that open-source maintainers love and merge quickly.</p>
-          </div>
-        </div>
-
-        <div class="grid-2-col">
-          <div class="card">
-            <h3 class="card-title">Contribution Details</h3>
-            <div class="form-group">
-              <label>PR Type</label>
-              <select id="prTypeSelect" class="form-control">
-                <option value="fix">fix: Bug Fix (patches an issue)</option>
-                <option value="feat">feat: New Feature (adds functionality)</option>
-                <option value="docs">docs: Documentation Update</option>
-                <option value="perf">perf: Performance Optimization</option>
-                <option value="refactor">refactor: Code Refactoring</option>
-                <option value="test">test: Adding Missing Tests</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label>Module / Scope (Optional)</label>
-              <input type="text" id="prScopeInput" class="form-control" placeholder="e.g. auth, router, core, hooks">
-            </div>
-            <div class="form-group">
-              <label>Issue Title or Reference #</label>
-              <input type="text" id="prIssueInput" class="form-control" placeholder="e.g. Fixes #28410: Null check on unmounted ref">
-            </div>
-            <div class="form-group">
-              <label>What changed and why?</label>
-              <textarea id="prSummaryInput" class="form-control" rows="4" placeholder="Briefly describe what was broken and how your solution fixes it..."></textarea>
-            </div>
-            <div class="form-group">
-              <label>How did you verify this?</label>
-              <input type="text" id="prTestingInput" class="form-control" placeholder="e.g. Ran yarn test --watch, added 2 unit test cases">
-            </div>
-            <div class="form-actions" style="display: flex; gap: 10px;">
-              <button class="btn btn-secondary" id="btnLoadSamplePR">Load Sample PR</button>
-              <button class="btn btn-primary" id="btnGeneratePR">Generate Professional PR</button>
-            </div>
-          </div>
-
-          <div class="card">
-            <div class="card-header-flex">
-              <h3 class="card-title">Generated Pull Request</h3>
-              <button class="btn btn-secondary btn-sm" id="btnCopyPRMarkdown">Copy Markdown</button>
-            </div>
-            
-            <div class="form-group">
-              <label>Conventional Commit Message</label>
-              <div class="commit-box" id="prCommitResult" style="padding: 10px 14px; background: #0B1222; color: #38BDF8; border-radius: 8px; font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; margin-bottom: 12px;">
-                fix(core): resolve null pointer exception when accessing unmounted ref
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label>Formatted PR Body</label>
-              <pre class="snippet" id="prBodyResult" style="min-height: 220px; max-height: 380px; overflow-y: auto; white-space: pre-wrap; font-size: 0.85rem; padding: 14px; border-radius: 8px; background: #090D16; color: #F8FAFC;">
-### 📝 Summary of Changes
-When rapid unmounting occurs while an asynchronous state transition is in-flight, ref.current dereferences undefined. Added defensive boundary checks and associated test cases.
-
-### 🔗 Related Issue
-Fixes #28410
-
-### 🛠️ Technical Details & Architectural Impact
-- Scope: core/hooks
-- Conventional Commit: fix(core/hooks): null pointer exception during unmount phase
-- Target Branch: main
-
-### ✅ Verification & Quality Assurance
-- [x] Code passes project linting rules (npm run lint)
-- [x] Unit test suites pass without warnings (npm test)
-- [x] Verification summary: Executed npm test with 100% assertion pass rate. Added 2 regression test specs.
-
----
-*Generated with OpenSource AI Platform*
-              </pre>
-            </div>
-          </div>
-        </div>
-      </section>
     </main>
 
     <!-- CONFIGURATION MODAL -->
@@ -888,6 +804,55 @@ Fixes #28410
 
   <!-- Client Knowledge Engine & Main App -->
   <script src="knowledge.js?v=901"></script>
-  <script src="app.js?v=910"></script>
+  <script src="app.js?v=950"></script>
+
+  <!-- FORGOT PASSWORD & RESET MODAL -->
+  <div class="modal-overlay" id="forgotModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="forgotModalTitle">Reset your password</h3>
+        <button class="modal-close" id="closeForgotModalBtn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="forgotStepRequest">
+          <p class="modal-desc" style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 16px;">
+            Enter the email address associated with your account and we'll help you reset your password.
+          </p>
+          <div id="forgotAlert" class="auth-alert"></div>
+          <form id="forgotPasswordForm">
+            <div class="form-group" style="margin-bottom: 16px;">
+              <label class="auth-label" for="forgotEmailInput">Email address</label>
+              <input type="email" id="forgotEmailInput" class="form-control" placeholder="name@company.com" required autocomplete="email">
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 10px;">
+              <button type="button" class="btn btn-secondary" id="btnCancelForgot">Back to Login</button>
+              <button type="submit" class="btn btn-primary" id="btnSendResetLink">Send Reset Link</button>
+            </div>
+          </form>
+        </div>
+
+        <div id="forgotStepReset" style="display: none;">
+          <p class="modal-desc" style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 16px;">
+            Create a secure new password for your account.
+          </p>
+          <div id="resetAlert" class="auth-alert"></div>
+          <form id="newPasswordForm">
+            <div class="form-group" style="margin-bottom: 12px;">
+              <label class="auth-label" for="resetNewPassword">New Password</label>
+              <input type="password" id="resetNewPassword" class="form-control" placeholder="At least 6 characters" required autocomplete="new-password">
+            </div>
+            <div class="form-group" style="margin-bottom: 16px;">
+              <label class="auth-label" for="resetConfirmPassword">Confirm New Password</label>
+              <input type="password" id="resetConfirmPassword" class="form-control" placeholder="Repeat new password" required autocomplete="new-password">
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 10px;">
+              <button type="submit" class="btn btn-primary" id="btnSaveNewPassword">Update Password</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>
