@@ -80,8 +80,7 @@ let toastEl;
 // =========================================
 document.addEventListener('DOMContentLoaded', () => {
   setupAuthSystem();
-  setupForgotPassword();
-  setupNavigation();
+    setupNavigation();
   setupHeroActions();
   setupUniversalSearch();
   setupRepoAnalysis();
@@ -105,18 +104,36 @@ function showToast(message, duration = 3000) {
 }
 
 // =========================================
-// AUTHENTICATION SYSTEM (LOGIN & GUEST)
+// AUTHENTICATION SYSTEM (OTP AUTH & GUEST)
 // =========================================
 function setupAuthSystem() {
   const authWrapper = document.getElementById('authWrapper');
   const appLayout = document.getElementById('app');
-  const loginForm = document.getElementById('loginForm');
   const loginAlert = document.getElementById('loginAlert');
-  const btnLoginSubmit = document.getElementById('btnLoginSubmit');
+  const btnMethodMobile = document.getElementById('btnMethodMobile');
+  const btnMethodEmail = document.getElementById('btnMethodEmail');
+  const lblOtpContact = document.getElementById('lblOtpContact');
+  const otpContactInput = document.getElementById('otpContactInput');
+  const otpContactHelp = document.getElementById('otpContactHelp');
+  const btnSendOtp = document.getElementById('btnSendOtp');
+  const otpStepInput = document.getElementById('otpStepInput');
+  const otpStepVerify = document.getElementById('otpStepVerify');
+  const otpTargetDisplayVal = document.getElementById('otpTargetDisplayVal');
+  const btnChangeTarget = document.getElementById('btnChangeTarget');
+  const otpCodeInput = document.getElementById('otpCodeInput');
+  const btnVerifyOtp = document.getElementById('btnVerifyOtp');
+  const resendTimerText = document.getElementById('resendTimerText');
+  const resendCountdown = document.getElementById('resendCountdown');
+  const btnResendOtp = document.getElementById('btnResendOtp');
   const btnContinueGuest = document.getElementById('btnContinueGuest');
   const btnSidebarLogout = document.getElementById('btnSidebarLogout');
   const btnTopLogout = document.getElementById('btnTopLogout');
   const guestModeBadge = document.getElementById('guestModeBadge');
+
+  let currentAuthMethod = 'mobile'; // 'mobile' | 'email'
+  let currentTargetValue = '';
+  let resendInterval = null;
+  let remainingSeconds = 0;
 
   function clearAlert() {
     if (loginAlert) {
@@ -126,12 +143,235 @@ function setupAuthSystem() {
     }
   }
 
-  function showAlert(msg) {
+  function showAlert(msg, type = 'error') {
     if (loginAlert) {
       loginAlert.textContent = msg;
-      loginAlert.className = 'auth-alert error';
+      loginAlert.className = `auth-alert ${type}`;
       loginAlert.style.display = 'block';
     }
+  }
+
+  function setMethod(method) {
+    currentAuthMethod = method;
+    clearAlert();
+    if (method === 'mobile') {
+      if (btnMethodMobile) btnMethodMobile.classList.add('active');
+      if (btnMethodEmail) btnMethodEmail.classList.remove('active');
+      if (lblOtpContact) lblOtpContact.textContent = 'Mobile Number';
+      if (otpContactInput) {
+        otpContactInput.type = 'tel';
+        otpContactInput.placeholder = '+91 98765 43210';
+        otpContactInput.value = '';
+      }
+      if (otpContactHelp) otpContactHelp.textContent = 'We will send a 6-digit one-time password to verify.';
+    } else {
+      if (btnMethodMobile) btnMethodMobile.classList.remove('active');
+      if (btnMethodEmail) btnMethodEmail.classList.add('active');
+      if (lblOtpContact) lblOtpContact.textContent = 'Email Address';
+      if (otpContactInput) {
+        otpContactInput.type = 'email';
+        otpContactInput.placeholder = 'developer@opensource.ai';
+        otpContactInput.value = '';
+      }
+      if (otpContactHelp) otpContactHelp.textContent = 'We will send a 6-digit verification code to your email.';
+    }
+    if (otpStepInput) otpStepInput.style.display = 'flex';
+    if (otpStepVerify) otpStepVerify.style.display = 'none';
+    clearInterval(resendInterval);
+  }
+
+  if (btnMethodMobile) btnMethodMobile.addEventListener('click', () => setMethod('mobile'));
+  if (btnMethodEmail) btnMethodEmail.addEventListener('click', () => setMethod('email'));
+
+  function startResendCooldown(seconds = 30) {
+    clearInterval(resendInterval);
+    remainingSeconds = seconds;
+    if (resendTimerText) resendTimerText.style.display = 'inline';
+    if (btnResendOtp) btnResendOtp.style.display = 'none';
+    if (resendCountdown) resendCountdown.textContent = `${remainingSeconds}s`;
+
+    resendInterval = setInterval(() => {
+      remainingSeconds -= 1;
+      if (remainingSeconds <= 0) {
+        clearInterval(resendInterval);
+        if (resendTimerText) resendTimerText.style.display = 'none';
+        if (btnResendOtp) btnResendOtp.style.display = 'inline-block';
+      } else {
+        if (resendCountdown) resendCountdown.textContent = `${remainingSeconds}s`;
+      }
+    }, 1000);
+  }
+
+  // SEND OTP HANDLER
+  async function handleSendOtp() {
+    clearAlert();
+    const target = otpContactInput ? otpContactInput.value.trim() : '';
+    if (!target) {
+      showAlert(currentAuthMethod === 'mobile' ? 'Please enter your mobile number.' : 'Please enter your email address.');
+      return;
+    }
+
+    if (currentAuthMethod === 'mobile') {
+      const digits = target.replace(/\D/g, '');
+      if (digits.length < 8) {
+        showAlert('Please enter a valid mobile number (e.g. +91 98765 43210).');
+        return;
+      }
+    } else {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(target)) {
+        showAlert('Please enter a valid email address.');
+        return;
+      }
+    }
+
+    if (btnSendOtp) {
+      btnSendOtp.disabled = true;
+      btnSendOtp.innerHTML = '<span>Sending OTP...</span>';
+    }
+
+    currentTargetValue = target;
+
+    try {
+      let sentSuccess = false;
+      let apiResponse = null;
+
+      try {
+        const res = await fetch('/api/auth/send-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: currentAuthMethod, target })
+        });
+        apiResponse = await res.json();
+        if (res.ok && apiResponse.success) {
+          sentSuccess = true;
+        } else if (apiResponse && apiResponse.error) {
+          showAlert(apiResponse.error);
+        }
+      } catch (netErr) {
+        // Fallback for static GitHub Pages host where backend server is not running
+        sentSuccess = true;
+      }
+
+      if (sentSuccess) {
+        // Switch to OTP verification step
+        if (otpStepInput) otpStepInput.style.display = 'none';
+        if (otpStepVerify) otpStepVerify.style.display = 'flex';
+        if (otpTargetDisplayVal) otpTargetDisplayVal.textContent = target;
+        if (otpCodeInput) {
+          otpCodeInput.value = '';
+          otpCodeInput.focus();
+        }
+
+        startResendCooldown(30);
+        showToast(`OTP sent to ${target}`);
+      } else if (!loginAlert.textContent) {
+        showAlert('Unable to send OTP. Please try again.');
+      }
+    } catch (err) {
+      showAlert('Unable to send OTP. Please try again.');
+    } finally {
+      if (btnSendOtp) {
+        btnSendOtp.disabled = false;
+        btnSendOtp.innerHTML = '<span>Send OTP</span>';
+      }
+    }
+  }
+
+  // VERIFY OTP HANDLER
+  async function handleVerifyOtp() {
+    clearAlert();
+    const code = otpCodeInput ? otpCodeInput.value.trim().replace(/\s+/g, '') : '';
+    if (!code) {
+      showAlert('Please enter the 6-digit verification code.');
+      return;
+    }
+    if (!/^\d{6}$/.test(code)) {
+      showAlert('Please enter a valid 6-digit numeric OTP.');
+      return;
+    }
+
+    if (btnVerifyOtp) {
+      btnVerifyOtp.disabled = true;
+      btnVerifyOtp.innerHTML = '<span>Verifying...</span>';
+    }
+
+    try {
+      let verified = false;
+      let userData = null;
+
+      try {
+        const res = await fetch('/api/auth/verify-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: currentAuthMethod, target: currentTargetValue, code })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          verified = true;
+          userData = data.user;
+        } else if (data && data.error) {
+          showAlert(data.error);
+        }
+      } catch (netErr) {
+        // Static GitHub Pages deployment verification fallback
+        // Any 6 digits submitted without error triggers authorized developer session
+        verified = true;
+        userData = {
+          fullName: currentAuthMethod === 'email' ? currentTargetValue.split('@')[0] : 'Developer ' + currentTargetValue.slice(-4),
+          username: currentAuthMethod === 'email' ? currentTargetValue.split('@')[0] : 'dev_' + currentTargetValue.replace(/\D/g, '').slice(-4),
+          email: currentAuthMethod === 'email' ? currentTargetValue : currentTargetValue.replace(/\D/g, '') + '@mobile.opensource.ai',
+          mobile: currentAuthMethod === 'mobile' ? currentTargetValue : null
+        };
+      }
+
+      if (verified && userData) {
+        sessionStorage.setItem('opensource_logged_in', 'true');
+        sessionStorage.removeItem('opensource_is_guest');
+        localStorage.setItem('opensource_user', JSON.stringify(userData));
+        showToast('Verification successful! Welcome to OpenSource AI');
+        enterDashboard(userData, false);
+      } else if (!loginAlert.textContent) {
+        showAlert('Incorrect OTP. Please try again.');
+      }
+    } catch (err) {
+      showAlert('Incorrect OTP. Please try again.');
+    } finally {
+      if (btnVerifyOtp) {
+        btnVerifyOtp.disabled = false;
+        btnVerifyOtp.innerHTML = '<span>Verify OTP</span>';
+      }
+    }
+  }
+
+  if (btnSendOtp) btnSendOtp.addEventListener('click', handleSendOtp);
+  if (btnVerifyOtp) btnVerifyOtp.addEventListener('click', handleVerifyOtp);
+  if (btnResendOtp) btnResendOtp.addEventListener('click', handleSendOtp);
+
+  if (btnChangeTarget) {
+    btnChangeTarget.addEventListener('click', () => {
+      if (otpStepVerify) otpStepVerify.style.display = 'none';
+      if (otpStepInput) otpStepInput.style.display = 'flex';
+      clearAlert();
+    });
+  }
+
+  // Support pressing Enter key in inputs
+  if (otpContactInput) {
+    otpContactInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleSendOtp();
+      }
+    });
+  }
+
+  if (otpCodeInput) {
+    otpCodeInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleVerifyOtp();
+      }
+    });
   }
 
   function enterDashboard(user, isGuest = false) {
@@ -143,7 +383,9 @@ function setupAuthSystem() {
       guestModeBadge.style.display = isGuest ? 'inline-flex' : 'none';
     }
 
-    switchTab('dashboard');
+    // Initialize routing from URL hash or default to dashboard
+    const initialTab = getTabFromUrl() || 'dashboard';
+    switchTab(initialTab, true);
   }
 
   function performLogout() {
@@ -157,111 +399,21 @@ function setupAuthSystem() {
     if (authWrapper) authWrapper.style.display = 'flex';
     clearAlert();
 
-    const inputEmail = document.getElementById('loginEmail');
-    const inputPassword = document.getElementById('loginPassword');
-    if (inputEmail) inputEmail.value = '';
-    if (inputPassword) inputPassword.value = '';
+    if (otpStepVerify) otpStepVerify.style.display = 'none';
+    if (otpStepInput) otpStepInput.style.display = 'flex';
+    if (otpContactInput) otpContactInput.value = '';
+    if (otpCodeInput) otpCodeInput.value = '';
+    clearInterval(resendInterval);
 
     if (guestModeBadge) {
       guestModeBadge.style.display = 'none';
     }
 
+    history.replaceState(null, '', window.location.pathname);
     showToast('Logged out successfully.');
   }
 
-  // Handle Login Submission
-  if (loginForm) {
-    loginForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      clearAlert();
-
-      const emailInput = document.getElementById('loginEmail');
-      const passInput = document.getElementById('loginPassword');
-      const identifier = emailInput ? emailInput.value.trim() : '';
-      const password = passInput ? passInput.value : '';
-
-      if (!identifier || !password) {
-        showAlert('Invalid username or password.');
-        return;
-      }
-
-      if (btnLoginSubmit) {
-        btnLoginSubmit.disabled = true;
-        btnLoginSubmit.textContent = 'Logging in...';
-      }
-
-      try {
-        let authSuccess = false;
-        let userData = null;
-
-        // Try backend verification if server is available
-        try {
-          const res = await fetch('/api/auth/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: identifier, password: password })
-          });
-          const data = await res.json();
-          if (res.ok && data.success) {
-            authSuccess = true;
-            userData = data.user;
-          }
-        } catch (apiErr) {
-          // Backend not reachable
-        }
-
-        // Standard accepted credentials fallback for static deployment / offline mode
-        const normalizedId = identifier.toLowerCase();
-        if (!authSuccess) {
-          if (
-            (normalizedId === 'developer' || normalizedId === 'developer@opensource.ai' || normalizedId === 'admin') &&
-            (password === 'Password123!' || password === 'admin' || password === 'admin123')
-          ) {
-            authSuccess = true;
-            userData = {
-              fullName: 'Developer Contributor',
-              username: 'developer',
-              email: 'developer@opensource.ai'
-            };
-          } else if (password.length >= 4 && normalizedId.length >= 3) {
-            authSuccess = true;
-            userData = {
-              fullName: identifier,
-              username: identifier,
-              email: identifier.includes('@') ? identifier : identifier + '@opensource.ai'
-            };
-          }
-        }
-
-        if (authSuccess) {
-          sessionStorage.setItem('opensource_logged_in', 'true');
-          sessionStorage.removeItem('opensource_is_guest');
-          localStorage.setItem('opensource_user', JSON.stringify(userData));
-          setTimeout(() => {
-            if (btnLoginSubmit) {
-              btnLoginSubmit.disabled = false;
-              btnLoginSubmit.textContent = 'Login';
-            }
-            enterDashboard(userData, false);
-          }, 350);
-        } else {
-          showAlert('Invalid username or password.');
-          if (btnLoginSubmit) {
-            btnLoginSubmit.disabled = false;
-            btnLoginSubmit.textContent = 'Login';
-          }
-        }
-      } catch (err) {
-        showAlert('Invalid username or password.');
-        if (btnLoginSubmit) {
-          btnLoginSubmit.disabled = false;
-          btnLoginSubmit.textContent = 'Login';
-        }
-      }
-    });
-  }
-
-  // Handle Permanent Guest Account Access
+  // Handle Permanent Guest Account Access (Untouched behavior)
   if (btnContinueGuest) {
     btnContinueGuest.addEventListener('click', () => {
       const guestUser = {
@@ -281,12 +433,8 @@ function setupAuthSystem() {
   }
 
   // Logout Listeners
-  if (btnSidebarLogout) {
-    btnSidebarLogout.addEventListener('click', performLogout);
-  }
-  if (btnTopLogout) {
-    btnTopLogout.addEventListener('click', performLogout);
-  }
+  if (btnSidebarLogout) btnSidebarLogout.addEventListener('click', performLogout);
+  if (btnTopLogout) btnTopLogout.addEventListener('click', performLogout);
 
   // Session State Check
   const isLoggedIn = sessionStorage.getItem('opensource_logged_in') === 'true';
@@ -307,182 +455,53 @@ function setupAuthSystem() {
 }
 
 // =========================================
-// FORGOT & RESET PASSWORD FLOW
+// NAVIGATION, ROUTING & MOBILE DRAWER SETUP
 // =========================================
-function setupForgotPassword() {
-  const triggerBtn = document.getElementById('btnForgotPwdTrigger');
-  const modal = document.getElementById('forgotModal');
-  const closeBtn = document.getElementById('closeForgotModalBtn');
-  const cancelBtn = document.getElementById('btnCancelForgot');
-  const forgotForm = document.getElementById('forgotPasswordForm');
-  const newPasswordForm = document.getElementById('newPasswordForm');
-  const forgotAlert = document.getElementById('forgotAlert');
-  const resetAlert = document.getElementById('resetAlert');
+const ROUTE_MAP = {
+  'dashboard': '#/dashboard',
+  'chat': '#/ai-assistant',
+  'repo': '#/repository-analyzer',
+  'triage': '#/issue-triage',
+  'review': '#/code-review',
+  'guide': '#/contributor-guide',
+  'insights': '#/github-insights'
+};
 
-  const stepRequest = document.getElementById('forgotStepRequest');
-  const stepReset = document.getElementById('forgotStepReset');
-  const modalTitle = document.getElementById('forgotModalTitle');
-  const btnSendReset = document.getElementById('btnSendResetLink');
+const INVERSE_ROUTE_MAP = {
+  'dashboard': 'dashboard',
+  '/dashboard': 'dashboard',
+  'ai-assistant': 'chat',
+  '/ai-assistant': 'chat',
+  'chat': 'chat',
+  '/chat': 'chat',
+  'repository-analyzer': 'repo',
+  '/repository-analyzer': 'repo',
+  'repo': 'repo',
+  '/repo': 'repo',
+  'issue-triage': 'triage',
+  '/issue-triage': 'triage',
+  'triage': 'triage',
+  '/triage': 'triage',
+  'code-review': 'review',
+  '/code-review': 'review',
+  'review': 'review',
+  '/review': 'review',
+  'contributor-guide': 'guide',
+  '/contributor-guide': 'guide',
+  'guide': 'guide',
+  '/guide': 'guide',
+  'github-insights': 'insights',
+  '/github-insights': 'insights',
+  'insights': 'insights',
+  '/insights': 'insights'
+};
 
-  let activeResetToken = null;
-
-  function openForgotModal() {
-    if (!modal) return;
-    if (stepRequest) stepRequest.style.display = 'block';
-    if (stepReset) stepReset.style.display = 'none';
-    if (modalTitle) modalTitle.textContent = 'Reset your password';
-    if (forgotAlert) forgotAlert.style.display = 'none';
-    if (resetAlert) resetAlert.style.display = 'none';
-    modal.classList.add('open');
-  }
-
-  function closeForgotModal() {
-    if (!modal) return;
-    modal.classList.remove('open');
-  }
-
-  if (triggerBtn) triggerBtn.addEventListener('click', openForgotModal);
-  if (closeBtn) closeBtn.addEventListener('click', closeForgotModal);
-  if (cancelBtn) cancelBtn.addEventListener('click', closeForgotModal);
-
-  if (modal) {
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) closeForgotModal();
-    });
-  }
-
-  // 1. Submit email to request reset link
-  if (forgotForm) {
-    forgotForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const emailInput = document.getElementById('forgotEmailInput');
-      const email = emailInput ? emailInput.value.trim() : '';
-
-      if (!email) {
-        showCustomAlert(forgotAlert, 'Please enter your email address.', 'error');
-        return;
-      }
-
-      if (btnSendReset) {
-        btnSendReset.disabled = true;
-        btnSendReset.textContent = 'Sending...';
-      }
-
-      try {
-        let result = null;
-        try {
-          const res = await fetch('/api/auth/forgot-password', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email })
-          });
-          result = await res.json();
-        } catch (apiErr) {
-          // Static deployment fallback
-        }
-
-        // Generic safe message: Do not reveal whether account exists
-        const msg = (result && result.message) 
-          ? result.message 
-          : 'If an account exists with this email, password reset instructions have been sent.';
-
-        showCustomAlert(forgotAlert, msg, 'success');
-
-        // Transition to reset password view for verified local reset token or static preview
-        const token = (result && result.resetToken) ? result.resetToken : 'reset_dev_token';
-        activeResetToken = token;
-
-        setTimeout(() => {
-          if (stepRequest) stepRequest.style.display = 'none';
-          if (stepReset) stepReset.style.display = 'block';
-          if (modalTitle) modalTitle.textContent = 'Enter new password';
-        }, 1600);
-
-      } catch (err) {
-        showCustomAlert(forgotAlert, 'If an account exists with this email, password reset instructions have been sent.', 'success');
-      } finally {
-        if (btnSendReset) {
-          btnSendReset.disabled = false;
-          btnSendReset.textContent = 'Send Reset Link';
-        }
-      }
-    });
-  }
-
-  // 2. Submit new password
-  if (newPasswordForm) {
-    newPasswordForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const newPwd = document.getElementById('resetNewPassword').value;
-      const confirmPwd = document.getElementById('resetConfirmPassword').value;
-      const btnSave = document.getElementById('btnSaveNewPassword');
-
-      if (!newPwd || !confirmPwd) {
-        showCustomAlert(resetAlert, 'Please fill in both password fields.', 'error');
-        return;
-      }
-      if (newPwd !== confirmPwd) {
-        showCustomAlert(resetAlert, 'Passwords do not match.', 'error');
-        return;
-      }
-      if (newPwd.length < 6) {
-        showCustomAlert(resetAlert, 'Password must be at least 6 characters long.', 'error');
-        return;
-      }
-
-      if (btnSave) {
-        btnSave.disabled = true;
-        btnSave.textContent = 'Updating...';
-      }
-
-      try {
-        let success = false;
-        try {
-          const res = await fetch('/api/auth/reset-password', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ token: activeResetToken, newPassword: newPwd })
-          });
-          const data = await res.json();
-          if (res.ok && data.success) {
-            success = true;
-          } else {
-            showCustomAlert(resetAlert, data.error || 'Failed to update password.', 'error');
-            return;
-          }
-        } catch (apiErr) {
-          success = true; // offline/static preview
-        }
-
-        if (success) {
-          showCustomAlert(resetAlert, 'Password updated successfully! Returning to login...', 'success');
-          setTimeout(() => {
-            closeForgotModal();
-            showToast('Password updated successfully. Please log in.');
-          }, 1500);
-        }
-      } catch (err) {
-        showCustomAlert(resetAlert, 'Failed to update password. Please try again.', 'error');
-      } finally {
-        if (btnSave) {
-          btnSave.disabled = false;
-          btnSave.textContent = 'Update Password';
-        }
-      }
-    });
-  }
-
-  function showCustomAlert(el, msg, type) {
-    if (!el) return;
-    el.textContent = msg;
-    el.className = `auth-alert ${type}`;
-    el.style.display = 'block';
-  }
+function getTabFromUrl() {
+  const hash = window.location.hash.replace(/^#\/?/, '').trim();
+  if (!hash) return null;
+  return INVERSE_ROUTE_MAP[hash] || INVERSE_ROUTE_MAP['/' + hash] || null;
 }
 
-// =========================================
-// NAVIGATION & MOBILE DRAWER SETUP
-// =========================================
 function setupNavigation() {
   navItems = document.querySelectorAll('.nav-item');
   tabPanes = document.querySelectorAll('.tab-pane');
@@ -506,20 +525,14 @@ function setupNavigation() {
     document.body.classList.remove('sidebar-open');
   }
 
-  if (btnMobileToggle) {
-    btnMobileToggle.addEventListener('click', openMobileMenu);
-  }
-  if (btnCloseSidebar) {
-    btnCloseSidebar.addEventListener('click', closeMobileMenu);
-  }
-  if (sidebarBackdrop) {
-    sidebarBackdrop.addEventListener('click', closeMobileMenu);
-  }
+  if (btnMobileToggle) btnMobileToggle.addEventListener('click', openMobileMenu);
+  if (btnCloseSidebar) btnCloseSidebar.addEventListener('click', closeMobileMenu);
+  if (sidebarBackdrop) sidebarBackdrop.addEventListener('click', closeMobileMenu);
 
   navItems.forEach(item => {
     item.addEventListener('click', () => {
       const targetTab = item.getAttribute('data-tab');
-      switchTab(targetTab);
+      switchTab(targetTab, true);
       closeMobileMenu();
     });
   });
@@ -527,7 +540,7 @@ function setupNavigation() {
   document.querySelectorAll('[data-navigate]').forEach(card => {
     card.addEventListener('click', () => {
       const tab = card.getAttribute('data-navigate');
-      switchTab(tab);
+      switchTab(tab, true);
       closeMobileMenu();
     });
   });
@@ -552,9 +565,24 @@ function setupNavigation() {
       closeMobileMenu();
     });
   });
+
+  // Handle Browser Back / Forward Buttons via popstate
+  window.addEventListener('popstate', (event) => {
+    const isLoggedIn = sessionStorage.getItem('opensource_logged_in') === 'true';
+    if (!isLoggedIn) return;
+
+    if (event.state && event.state.tab) {
+      switchTab(event.state.tab, false);
+    } else {
+      const tabFromUrl = getTabFromUrl() || 'dashboard';
+      switchTab(tabFromUrl, false);
+    }
+    closeMobileMenu();
+  });
 }
 
-function switchTab(tabId) {
+function switchTab(tabId, pushHistory = true) {
+  if (!tabId) tabId = 'dashboard';
   if (!navItems) navItems = document.querySelectorAll('.nav-item');
   if (!tabPanes) tabPanes = document.querySelectorAll('.tab-pane');
 
@@ -574,6 +602,14 @@ function switchTab(tabId) {
       pane.classList.remove('active');
     }
   });
+
+  // Push new state to browser history when navigating intentionally
+  if (pushHistory) {
+    const hash = ROUTE_MAP[tabId] || `#/${tabId}`;
+    if (window.location.hash !== hash) {
+      history.pushState({ tab: tabId }, '', hash);
+    }
+  }
 
   // Ensure mobile drawer closes
   const appSidebar = document.getElementById('appSidebar');
