@@ -1,0 +1,9 @@
+{
+  "name": "opensource-ai",
+  "version": "1.0.0",
+  "description": "OpenSource AI - Understand. Contribute. Build.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  }
+}
