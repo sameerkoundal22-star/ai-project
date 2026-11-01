@@ -15,7 +15,174 @@
   <!-- Ambient Space Glow -->
   <div class="ambient-glow"></div>
 
-  <div id="app" class="app-layout">
+  <!-- =========================================
+       AUTHENTICATION OVERLAY (LOGIN / SIGNUP)
+       ========================================= -->
+  <div id="authWrapper" class="auth-wrapper" style="display: flex;">
+    
+    <!-- 1. LOGIN CARD -->
+    <div id="loginCard" class="auth-card">
+      <div class="auth-header">
+        <div class="auth-logo">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <circle cx="12" cy="12" r="9"></circle>
+            <path d="M12 3a9 9 0 0 1 9 9"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+        </div>
+        <h2 class="auth-title">Welcome back</h2>
+        <div class="auth-tagline">"Understand. Contribute. Build."</div>
+        <p class="auth-subtitle">Sign in to continue to OpenSource AI</p>
+      </div>
+
+      <div id="loginAlert" class="auth-alert"></div>
+
+      <form id="loginForm" class="auth-form">
+        <div class="auth-form-group">
+          <label class="auth-label" for="loginEmail">Email or Username</label>
+          <div class="auth-input-wrapper">
+            <input type="text" id="loginEmail" class="auth-input" placeholder="developer@opensource.ai" required autocomplete="username">
+          </div>
+        </div>
+
+        <div class="auth-form-group">
+          <label class="auth-label" for="loginPassword">Password</label>
+          <div class="auth-input-wrapper">
+            <input type="password" id="loginPassword" class="auth-input" placeholder="••••••••" required autocomplete="current-password">
+            <button type="button" class="auth-toggle-pwd" id="toggleLoginPwd" title="Show/Hide Password">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="auth-remember-row">
+          <label class="auth-remember-label">
+            <input type="checkbox" id="loginRememberMe" checked>
+            <span>Remember me</span>
+          </label>
+          <a class="auth-link" id="linkForgotPassword">Forgot password?</a>
+        </div>
+
+        <button type="submit" id="btnLoginSubmit" class="auth-btn-submit">
+          <span>Sign In</span>
+        </button>
+
+        <div class="auth-demo-divider">Or Quick Access</div>
+
+        <button type="button" id="btnTryDemo" class="auth-btn-demo">
+          <span>⚡ Try Demo Account (Demo Mode)</span>
+        </button>
+      </form>
+
+      <div class="auth-footer">
+        Don't have an account? <a class="auth-link" id="linkGoToRegister">Create account</a>
+      </div>
+    </div>
+
+    <!-- 2. REGISTRATION / SIGNUP CARD -->
+    <div id="registerCard" class="auth-card" style="display: none;">
+      <div class="auth-header">
+        <div class="auth-logo">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <circle cx="12" cy="12" r="9"></circle>
+            <path d="M12 3a9 9 0 0 1 9 9"></path>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
+        </div>
+        <h2 class="auth-title">Create Account</h2>
+        <div class="auth-tagline">Join the OpenSource AI Community</div>
+        <p class="auth-subtitle">Start analyzing repositories and reviewing code</p>
+      </div>
+
+      <div id="registerAlert" class="auth-alert"></div>
+
+      <form id="registerForm" class="auth-form">
+        <div class="auth-form-group">
+          <label class="auth-label" for="regFullName">Full Name</label>
+          <div class="auth-input-wrapper">
+            <input type="text" id="regFullName" class="auth-input" placeholder="Alex Chen" required>
+          </div>
+        </div>
+
+        <div class="auth-form-group">
+          <label class="auth-label" for="regUsername">Username</label>
+          <div class="auth-input-wrapper">
+            <input type="text" id="regUsername" class="auth-input" placeholder="alexchen" required autocomplete="username">
+          </div>
+        </div>
+
+        <div class="auth-form-group">
+          <label class="auth-label" for="regEmail">Email Address</label>
+          <div class="auth-input-wrapper">
+            <input type="email" id="regEmail" class="auth-input" placeholder="alex@domain.com" required autocomplete="email">
+          </div>
+        </div>
+
+        <div class="auth-form-group">
+          <label class="auth-label" for="regPassword">Password</label>
+          <div class="auth-input-wrapper">
+            <input type="password" id="regPassword" class="auth-input" placeholder="At least 6 characters" required autocomplete="new-password">
+            <button type="button" class="auth-toggle-pwd" id="toggleRegPwd" title="Show/Hide Password">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="auth-form-group">
+          <label class="auth-label" for="regConfirmPassword">Confirm Password</label>
+          <div class="auth-input-wrapper">
+            <input type="password" id="regConfirmPassword" class="auth-input" placeholder="Confirm your password" required autocomplete="new-password">
+          </div>
+        </div>
+
+        <button type="submit" id="btnRegisterSubmit" class="auth-btn-submit">
+          <span>Create Account</span>
+        </button>
+      </form>
+
+      <div class="auth-footer">
+        Already have an account? <a class="auth-link" id="linkGoToLogin">Login</a>
+      </div>
+    </div>
+
+    <!-- 3. FORGOT PASSWORD CARD -->
+    <div id="forgotCard" class="auth-card" style="display: none;">
+      <div class="auth-header">
+        <div class="auth-logo">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+        </div>
+        <h2 class="auth-title">Reset your password</h2>
+        <p class="auth-subtitle">Enter your verified email to receive reset instructions</p>
+      </div>
+
+      <div id="forgotAlert" class="auth-alert"></div>
+
+      <form id="forgotForm" class="auth-form">
+        <div class="auth-form-group">
+          <label class="auth-label" for="forgotEmail">Email Address</label>
+          <div class="auth-input-wrapper">
+            <input type="email" id="forgotEmail" class="auth-input" placeholder="developer@opensource.ai" required autocomplete="email">
+          </div>
+        </div>
+
+        <button type="submit" id="btnForgotSubmit" class="auth-btn-submit">
+          <span>Send Reset Link</span>
+        </button>
+      </form>
+
+      <div class="auth-footer">
+        Remembered your password? <a class="auth-link" id="linkForgotBackToLogin">Back to login</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================
+       PROTECTED MAIN APPLICATION LAYOUT
+       ========================================= -->
+  <div id="app" class="app-layout" style="display: none;">
     <!-- Sidebar / Navigation -->
     <aside class="sidebar">
       <div class="brand">
@@ -89,15 +256,34 @@
         </div>
       </div>
 
-      <!-- User / Profile & Settings in Footer -->
+      <!-- User Profile Dropdown Menu in Footer -->
       <div class="sidebar-footer">
-        <div class="user-profile-badge">
-          <div class="user-avatar">DV</div>
-          <div class="user-info">
-            <div class="user-name">Developer</div>
-            <div class="user-role">Contributor • Level 3</div>
-          </div>
+        <!-- Floating User Menu Popover -->
+        <div id="userMenuDropdown" class="user-menu-dropdown">
+          <button class="user-menu-item" id="btnUserMenuProfile">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+            <span>My Profile</span>
+          </button>
+          <button class="user-menu-item" id="btnUserMenuSettings">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            <span>API Settings</span>
+          </button>
+          <div style="height: 1px; background: var(--border-color); margin: 3px 0;"></div>
+          <button class="user-menu-item logout" id="btnUserMenuLogout">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+            <span>Logout</span>
+          </button>
         </div>
+
+        <div class="user-profile-badge" id="userProfileBadge" title="Click for profile options">
+          <div class="user-avatar" id="sidebarUserAvatar">DC</div>
+          <div class="user-info">
+            <div class="user-name" id="sidebarUserName">Developer Contributor</div>
+            <div class="user-role" id="sidebarUserEmail">developer@opensource.ai</div>
+          </div>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--text-muted);"><polyline points="6 9 12 15 18 9"></polyline></svg>
+        </div>
+
         <button class="btn-config" id="openConfigBtn">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
           API Settings
@@ -120,6 +306,10 @@
             <span class="status-dot"></span>
             <span>AI Assistant • Ready</span>
           </div>
+          <button class="btn btn-secondary btn-sm" id="btnTopLogout" title="Sign out of OpenSource AI">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+            <span>Logout</span>
+          </button>
         </div>
       </header>
 
@@ -790,7 +980,7 @@ Fixes #28410
   </div>
 
   <!-- Client Knowledge Engine & Main App -->
-  <script src="knowledge.js?v=701"></script>
-  <script src="app.js?v=701"></script>
+  <script src="knowledge.js?v=801"></script>
+  <script src="app.js?v=801"></script>
 </body>
 </html>
