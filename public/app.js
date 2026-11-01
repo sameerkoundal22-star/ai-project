@@ -113,8 +113,10 @@ function setupAuthSystem() {
   const loginForm = document.getElementById('loginForm');
   const loginAlert = document.getElementById('loginAlert');
   const btnLoginSubmit = document.getElementById('btnLoginSubmit');
+  const btnContinueGuest = document.getElementById('btnContinueGuest');
   const btnSidebarLogout = document.getElementById('btnSidebarLogout');
   const btnTopLogout = document.getElementById('btnTopLogout');
+  const guestModeBadge = document.getElementById('guestModeBadge');
 
   function clearAlert() {
     if (loginAlert) {
@@ -132,15 +134,21 @@ function setupAuthSystem() {
     }
   }
 
-  function enterDashboard(user) {
+  function enterDashboard(user, isGuest = false) {
     currentUser = user || { fullName: 'Developer', username: 'developer', email: 'developer@opensource.ai' };
     if (authWrapper) authWrapper.style.display = 'none';
     if (appLayout) appLayout.style.display = 'flex';
+
+    if (guestModeBadge) {
+      guestModeBadge.style.display = isGuest ? 'inline-flex' : 'none';
+    }
+
     switchTab('dashboard');
   }
 
   function performLogout() {
     sessionStorage.removeItem('opensource_logged_in');
+    sessionStorage.removeItem('opensource_is_guest');
     localStorage.removeItem('opensource_token');
     localStorage.removeItem('opensource_user');
     currentUser = null;
@@ -153,6 +161,10 @@ function setupAuthSystem() {
     const inputPassword = document.getElementById('loginPassword');
     if (inputEmail) inputEmail.value = '';
     if (inputPassword) inputPassword.value = '';
+
+    if (guestModeBadge) {
+      guestModeBadge.style.display = 'none';
+    }
 
     showToast('Logged out successfully.');
   }
@@ -223,13 +235,14 @@ function setupAuthSystem() {
 
         if (authSuccess) {
           sessionStorage.setItem('opensource_logged_in', 'true');
+          sessionStorage.removeItem('opensource_is_guest');
           localStorage.setItem('opensource_user', JSON.stringify(userData));
           setTimeout(() => {
             if (btnLoginSubmit) {
               btnLoginSubmit.disabled = false;
               btnLoginSubmit.textContent = 'Login';
             }
-            enterDashboard(userData);
+            enterDashboard(userData, false);
           }, 350);
         } else {
           showAlert('Invalid username or password.');
@@ -248,6 +261,25 @@ function setupAuthSystem() {
     });
   }
 
+  // Handle Permanent Guest Account Access
+  if (btnContinueGuest) {
+    btnContinueGuest.addEventListener('click', () => {
+      const guestUser = {
+        fullName: 'Guest Contributor',
+        username: 'guest',
+        email: 'guest@opensource.ai',
+        isGuest: true
+      };
+
+      sessionStorage.setItem('opensource_logged_in', 'true');
+      sessionStorage.setItem('opensource_is_guest', 'true');
+      localStorage.setItem('opensource_user', JSON.stringify(guestUser));
+
+      enterDashboard(guestUser, true);
+      showToast('Exploring OpenSource AI in Guest Mode');
+    });
+  }
+
   // Logout Listeners
   if (btnSidebarLogout) {
     btnSidebarLogout.addEventListener('click', performLogout);
@@ -258,11 +290,12 @@ function setupAuthSystem() {
 
   // Session State: Entry gate per session
   const isLoggedIn = sessionStorage.getItem('opensource_logged_in') === 'true';
+  const isGuest = sessionStorage.getItem('opensource_is_guest') === 'true';
   const savedUser = localStorage.getItem('opensource_user');
 
   if (isLoggedIn && savedUser) {
     try {
-      enterDashboard(JSON.parse(savedUser));
+      enterDashboard(JSON.parse(savedUser), isGuest);
     } catch (e) {
       if (authWrapper) authWrapper.style.display = 'flex';
       if (appLayout) appLayout.style.display = 'none';
