@@ -295,25 +295,6 @@ async function analyzeRepository(repoSlugOrUrl) {
   };
   const targetSlug = ALIASES[cleanInput.toLowerCase()] || cleanInput;
 
-  // Clean raw pasted input: strip https://github.com/, trailing slashes, .git
-  let cleanInput = (repoSlugOrUrl || '').trim();
-  cleanInput = cleanInput.replace(/^https?:\/\/github\.com\//i, '');
-  cleanInput = cleanInput.replace(/\.git$/i, '');
-  cleanInput = cleanInput.replace(/^\/+/, '').replace(/\/+$/, '');
-
-  // Alias shortcuts
-  const ALIASES = {
-    'react': 'facebook/react',
-    'express': 'expressjs/express',
-    'vue': 'vuejs/core',
-    'vue 3': 'vuejs/core',
-    'vuejs': 'vuejs/core',
-    'next': 'vercel/next.js',
-    'next.js': 'vercel/next.js',
-    'nextjs': 'vercel/next.js'
-  };
-  const targetSlug = ALIASES[cleanInput.toLowerCase()] || cleanInput;
-
   try {
     const res = await fetch('/api/repo/analyze', {
       method: 'POST',
@@ -336,56 +317,29 @@ async function analyzeRepository(repoSlugOrUrl) {
     if (btn) btn.disabled = false;
   }
 
-<<<<<<< HEAD
-  // Client-side fallback if server API or GitHub rate limits
-=======
   // Client-side fallback
->>>>>>> main
   if (window.CLIENT_KNOWLEDGE && window.CLIENT_KNOWLEDGE.projects) {
     const s = targetSlug.toLowerCase();
     let matched = window.CLIENT_KNOWLEDGE.projects[s];
     if (!matched) {
-<<<<<<< HEAD
-      // Find partial or default
-=======
->>>>>>> main
       const keys = Object.keys(window.CLIENT_KNOWLEDGE.projects);
       const foundKey = keys.find(k => k.includes(s) || s.includes(k.split('/')[1]));
       matched = foundKey ? window.CLIENT_KNOWLEDGE.projects[foundKey] : null;
     }
 
     if (!matched) {
-<<<<<<< HEAD
-      // Dynamically generate repository object for any custom user input
-      const parts = targetSlug.split('/');
-      const owner = parts[0] || 'community';
-=======
       const parts = targetSlug.split('/');
       const owner = parts[0] || 'developer';
->>>>>>> main
       const name = parts[1] || parts[0] || 'project';
       matched = {
         name,
         owner,
         fullName: `${owner}/${name}`,
-<<<<<<< HEAD
-        description: `Open-source ${name} repository configured for development, testing, and contribution.`,
-=======
         description: `Open-source ${name} repository providing developer tools and utilities.`,
->>>>>>> main
         stars: 3420,
         forks: 580,
         openIssues: 24,
         mainLanguage: 'TypeScript / JavaScript',
-<<<<<<< HEAD
-        topics: [name, 'developer-tools', 'open-source', 'community'],
-        activity: 'Active contributions and updates',
-        license: 'MIT',
-        readme: '# ' + name + '\n\nWelcome to the official repository for **' + owner + '/' + name + '**.\n\n## Quick Start\n```bash\ngit clone https://github.com/' + owner + '/' + name + '.git\ncd ' + name + '\nnpm install\nnpm test\n```\n\n## Architectural Overview\nThis project utilizes modern component and modular architectural design with continuous integration workflows.',
-        contributing: '# Contributing to ' + name + '\n\n1. Fork the repo and create your feature branch.\n2. Ensure all unit tests pass locally (`npm test`).\n3. Adhere to repository coding style guidelines.\n4. Open a pull request with descriptive test steps.',
-        issues: [
-          { id: 801, number: 14, title: `Documentation: Add getting started guides and API parameters for ${name}`, labels: ['good first issue', 'docs'], difficulty: 'Beginner' },
-=======
         topics: [name, 'developer-tools', 'open-source'],
         activity: 'Active contributions and updates',
         license: 'MIT',
@@ -393,7 +347,6 @@ async function analyzeRepository(repoSlugOrUrl) {
         contributing: '# Contributing to ' + name + '\n\n1. Fork the repo.\n2. Ensure npm test passes.\n3. Open PR.',
         issues: [
           { id: 801, number: 14, title: `Documentation: Update usage guide for ${name}`, labels: ['good first issue', 'docs'], difficulty: 'Beginner' },
->>>>>>> main
           { id: 802, number: 22, title: `Enhancement: Add automated regression test workflow`, labels: ['enhancement', 'ci'], difficulty: 'Intermediate' }
         ]
       };
