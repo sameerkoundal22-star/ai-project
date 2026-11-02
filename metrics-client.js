@@ -83,18 +83,37 @@ const ClientMetrics = {
   },
 
   async syncWithServer() {
+    // When running statically on GitHub Pages, do not call dead /api/metrics endpoint
+    const isStatic = typeof window !== 'undefined' && (
+      window.location.hostname.endsWith('github.io') ||
+      window.location.protocol === 'file:'
+    );
+    if (isStatic) {
+      this.render();
+      return;
+    }
+
     try {
-      const res = await fetch('/api/metrics');
-      if (res.ok) {
-        const json = await res.json();
-        if (json && json.success && json.data) {
-          this.saveStore(json.data);
+      if (typeof safeApiFetch === 'function') {
+        const res = await safeApiFetch('/api/metrics');
+        if (res.ok && res.data && res.data.success && res.data.data) {
+          this.saveStore(res.data.data);
           this.render();
           return;
         }
+      } else {
+        const res = await fetch('/api/metrics');
+        if (res.ok) {
+          const json = await res.json();
+          if (json && json.success && json.data) {
+            this.saveStore(json.data);
+            this.render();
+            return;
+          }
+        }
       }
     } catch (e) {
-      // Offline / GitHub Pages fallback
+      // Offline fallback
     }
     this.render();
   },

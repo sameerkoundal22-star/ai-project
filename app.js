@@ -1,5 +1,16 @@
+// Host Environment Detection
+// When deployed on GitHub Pages (*.github.io) or loaded as a static file, no backend Node.js server exists.
+// All API calls must cleanly route through the client-side engines and client storage to prevent 404/405 errors.
+const IS_STATIC_HOST = typeof window !== 'undefined' && (
+  window.location.hostname.endsWith('github.io') ||
+  window.location.protocol === 'file:'
+);
+
 // Safe API request helper: returns null on non-200 or static 404/405 without uncaught errors
 async function safeApiFetch(url, options = {}) {
+  if (IS_STATIC_HOST) {
+    return { ok: false, status: 404, data: null, isStatic: true };
+  }
   try {
     const res = await fetch(url, options);
     if (!res.ok) {
@@ -136,10 +147,15 @@ function getSupabaseConfig() {
 }
 
 async function fetchServerSupabaseConfig() {
+  if (IS_STATIC_HOST) {
+    // On GitHub Pages or static host, resolve from local configuration directly without dead network requests
+    initSupabase();
+    return;
+  }
   try {
-    const res = await fetch('/api/config');
-    if (res.ok) {
-      const data = await res.json();
+    const res = await safeApiFetch('/api/config');
+    if (res.ok && res.data) {
+      const data = res.data;
       if (data && data.supabaseUrl && data.supabaseAnonKey) {
         localStorage.setItem('opensource_supabase_url', data.supabaseUrl);
         localStorage.setItem('opensource_supabase_anon_key', data.supabaseAnonKey);
@@ -379,26 +395,26 @@ function setupAuthSystem() {
         let authSuccess = false;
         let userData = null;
 
-        // 1. Try server-side validation first
-        try {
-          const res = await fetch('/api/auth/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ identifier, password })
-          });
-          const data = await res.json();
-          if (res.ok && data.success) {
-            authSuccess = true;
-            userData = data.user;
-            if (data.token) {
-              localStorage.setItem('opensource_token', data.token);
+        // 1. Try server-side validation first if backend exists
+        if (!IS_STATIC_HOST) {
+          try {
+            const res = await safeApiFetch('/api/auth/login', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ identifier, password })
+            });
+            if (res.ok && res.data && res.data.success) {
+              authSuccess = true;
+              userData = res.data.user;
+              if (res.data.token) {
+                localStorage.setItem('opensource_token', res.data.token);
+              }
+            } else if (res.data && res.data.error) {
+              showAlert(res.data.error);
             }
-          } else if (data && data.error) {
-            showAlert(data.error);
+          } catch (apiErr) {
+            // Backend server error
           }
-        } catch (apiErr) {
-          // Backend server is not available (e.g. static GitHub Pages hosting)
-          // Validate using registered credentials system
         }
 
         // 2. Client-side fallback authentication for static hosts (GitHub Pages)
@@ -823,19 +839,20 @@ function setupUniversalSearch() {
     }
 
     debounceTimer = setTimeout(async () => {
-      try {
-        const res = await fetch('/api/search', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query, activeRepo: currentRepo })
-        });
-        const data = await res.json();
-        if (data.success && data.result) {
-          renderSearchResults(data.result);
-          return;
+      if (!IS_STATIC_HOST) {
+        try {
+          const res = await safeApiFetch('/api/search', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query, activeRepo: currentRepo })
+          });
+          if (res.ok && res.data && res.data.success && res.data.result) {
+            renderSearchResults(res.data.result);
+            return;
+          }
+        } catch (err) {
+          // Fallback to client knowledge
         }
-      } catch (err) {
-        // Fallback to client knowledge
       }
 
       if (window.CLIENT_KNOWLEDGE) {
@@ -1055,44 +1072,48 @@ async function analyzeRepository(repoSlugOrUrl) {
 
   updateProgress('Validating repository...', `Target: ${targetSlug}`);
 
-  // 1. First attempt: Dedicated Server GitHub Service Pipeline (Strict Request Budget)
-  try {
-    updateProgress('Connecting to GitHub API...', 'Fetching repository metadata & structure...');
-    const res = await fetch('/api/repo/analyze', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: targetSlug })
-    });
+  // 1. First attempt: Dedicated Server GitHub Service Pipeline if backend exists
+  if (!IS_STATIC_HOST) {
+    try {
+      updateProgress('Connecting to GitHub API...', 'Fetching repository metadata & structure...');
+      const res = await safeApiFetch('/api/repo/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: targetSlug })
+      });
 
-    const data = await res.json();
-    if (res.ok && data.success && data.data) {
-      hideRateLimitUI();
-      updateProgress('Synthesizing intelligence...', 'Constructing architectural breakdown...');
-      currentRepo = data.data;
+      if (res.ok && res.data) {
+        const data = res.data;
+        if (data.success && data.data) {
+          hideRateLimitUI();
+          updateProgress('Synthesizing intelligence...', 'Constructing architectural breakdown...');
+          currentRepo = data.data;
 
-      // Store in client sessionStorage cache
-      try {
-        sessionStorage.setItem(clientCacheKey, JSON.stringify(currentRepo));
-      } catch (e) {}
+          // Store in client sessionStorage cache
+          try {
+            sessionStorage.setItem(clientCacheKey, JSON.stringify(currentRepo));
+          } catch (e) {}
 
-      updateRepoUI(currentRepo, data.fromCache ? 'Live GitHub Data (Cached)' : data.mode);
-      if (window.ClientMetrics) {
-        window.ClientMetrics.recordRepoAnalysis(currentRepo.fullName || currentRepo.name);
+          updateRepoUI(currentRepo, data.fromCache ? 'Live GitHub Data (Cached)' : data.mode);
+          if (window.ClientMetrics) {
+            window.ClientMetrics.recordRepoAnalysis(currentRepo.fullName || currentRepo.name);
+          }
+          showToast(`Successfully analyzed ${currentRepo.fullName || currentRepo.name}`);
+          switchTab('repo');
+          return;
+        } else if (data.isRateLimit) {
+          showRateLimitUI(data.rateInfo, data.error);
+          if (progressBox) progressBox.style.display = 'none';
+          return;
+        } else if (data.error) {
+          showToast(data.error);
+          if (progressBox) progressBox.style.display = 'none';
+          return;
+        }
       }
-      showToast(`Successfully analyzed ${currentRepo.fullName || currentRepo.name}`);
-      switchTab('repo');
-      return;
-    } else if (data && data.isRateLimit) {
-      showRateLimitUI(data.rateInfo, data.error);
-      if (progressBox) progressBox.style.display = 'none';
-      return;
-    } else if (data && data.error) {
-      showToast(data.error);
-      if (progressBox) progressBox.style.display = 'none';
-      return;
+    } catch (err) {
+      // Server route unavailable. Fall back to Client-Side Optimized Direct GitHub fetch.
     }
-  } catch (err) {
-    // Server route unavailable (e.g. static GitHub Pages hosting). Fall back to Client-Side Optimized Direct GitHub fetch.
   }
 
   // 2. Client-side Direct GitHub Pipeline (GitHub Pages Static Hosting)
@@ -1601,48 +1622,46 @@ function setupChat() {
     const loadingId = 'loading-' + Date.now();
     appendLoadingMessage(loadingId);
 
-    // Fetch relevant Reddit discussions if Reddit source is checked
+    // Fetch relevant Reddit discussions if Reddit source is checked and backend exists
     let redditDiscussions = [];
-    if (srcReddit && srcReddit.checked) {
+    if (srcReddit && srcReddit.checked && !IS_STATIC_HOST) {
       try {
-        const redditRes = await fetch('/api/reddit/search', {
+        const redditRes = await safeApiFetch('/api/reddit/search', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ query, limit: 3 })
         });
-        if (redditRes.ok) {
-          const redditData = await redditRes.json();
-          if (redditData && redditData.success && Array.isArray(redditData.posts)) {
-            redditDiscussions = redditData.posts;
-          }
+        if (redditRes.ok && redditRes.data && redditRes.data.success && Array.isArray(redditRes.data.posts)) {
+          redditDiscussions = redditRes.data.posts;
         }
       } catch (err) {
         // Continue without Reddit context
       }
     }
 
-    try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: query,
-          repoContext: (srcGithub && srcGithub.checked) ? currentRepo : null,
-          history: conversationHistory,
-          redditDiscussions
-        })
-      });
+    if (!IS_STATIC_HOST) {
+      try {
+        const res = await safeApiFetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: query,
+            repoContext: (srcGithub && srcGithub.checked) ? currentRepo : null,
+            history: conversationHistory,
+            redditDiscussions
+          })
+        });
 
-      const data = await res.json();
-      removeLoadingMessage(loadingId);
-      if (data && data.success && data.reply) {
-        appendChatMessage('assistant', data.reply, data.mode);
-        conversationHistory.push({ role: 'assistant', content: data.reply });
-        if (window.ClientMetrics) window.ClientMetrics.recordQuestion(query);
-        return;
+        if (res.ok && res.data && res.data.success && res.data.reply) {
+          removeLoadingMessage(loadingId);
+          appendChatMessage('assistant', res.data.reply, res.data.mode);
+          conversationHistory.push({ role: 'assistant', content: res.data.reply });
+          if (window.ClientMetrics) window.ClientMetrics.recordQuestion(query);
+          return;
+        }
+      } catch (err) {
+        // Fallback to client engine
       }
-    } catch (err) {
-      // Offline fallback
     }
 
     removeLoadingMessage(loadingId);
@@ -1750,26 +1769,30 @@ function setupTriage() {
     btnRun.textContent = 'Triaging Issue...';
     btnRun.disabled = true;
 
-    try {
-      const res = await fetch('/api/triage', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title,
-          description,
-          repoName: currentRepo ? (currentRepo.fullName || currentRepo.name) : ''
-        })
-      });
+    if (!IS_STATIC_HOST) {
+      try {
+        const res = await safeApiFetch('/api/triage', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title,
+            description,
+            repoName: currentRepo ? (currentRepo.fullName || currentRepo.name) : ''
+          })
+        });
 
-      const data = await res.json();
-      if (data && data.success && data.triage) {
-        displayTriageResult(data.triage);
-        if (window.ClientMetrics) window.ClientMetrics.recordTriage(title, currentRepo?.fullName);
-        return;
+        if (res.ok && res.data && res.data.success && res.data.triage) {
+          displayTriageResult(res.data.triage);
+          if (window.ClientMetrics) window.ClientMetrics.recordTriage(title, currentRepo?.fullName);
+          return;
+        }
+      } catch (e) {
+        // Fallback
+      } finally {
+        btnRun.textContent = 'Analyze & Triage Issue';
+        btnRun.disabled = false;
       }
-    } catch (e) {
-      // Fallback
-    } finally {
+    } else {
       btnRun.textContent = 'Analyze & Triage Issue';
       btnRun.disabled = false;
     }
@@ -1906,29 +1929,33 @@ function setupCodeReview() {
     const chosenLang = langSelect ? langSelect.value : 'auto';
     const userContext = contextInput ? contextInput.value.trim() : '';
 
-    try {
-      const res = await fetch('/api/review', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          language: chosenLang,
-          code,
-          description: userContext
-        })
-      });
+    if (!IS_STATIC_HOST) {
+      try {
+        const res = await safeApiFetch('/api/review', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            language: chosenLang,
+            code,
+            description: userContext
+          })
+        });
 
-      const data = await res.json();
-      if (data && data.success && data.review) {
-        displayCodeReviewResult(data.review, data.mode);
-        if (window.ClientMetrics) {
-          window.ClientMetrics.recordCodeReview(chosenLang !== 'auto' ? chosenLang : (data.review.language || 'Code'), data.review.score);
+        if (res.ok && res.data && res.data.success && res.data.review) {
+          displayCodeReviewResult(res.data.review, res.data.mode);
+          if (window.ClientMetrics) {
+            window.ClientMetrics.recordCodeReview(chosenLang !== 'auto' ? chosenLang : (res.data.review.language || 'Code'), res.data.review.score);
+          }
+          showToast(`Code review complete — Quality Score: ${res.data.review.score}/10`);
+          return;
         }
-        showToast(`Code review complete — Quality Score: ${data.review.score}/10`);
-        return;
+      } catch (e) {
+        // Backend unavailable
+      } finally {
+        btnRun.textContent = 'Review Code';
+        btnRun.disabled = false;
       }
-    } catch (e) {
-      // Backend unavailable (e.g. GitHub Pages static deployment)
-    } finally {
+    } else {
       btnRun.textContent = 'Review Code';
       btnRun.disabled = false;
     }
@@ -2273,10 +2300,27 @@ function setupRedditCommunity() {
   checkRedditStatus();
 
   async function checkRedditStatus() {
+    if (IS_STATIC_HOST) {
+      const hasId = Boolean(localStorage.getItem('opensource_reddit_client_id'));
+      if (hasId) {
+        if (badgeEl) {
+          badgeEl.textContent = 'API Connected';
+          badgeEl.className = 'badge badge-success';
+        }
+        if (alertEl) alertEl.style.display = 'none';
+      } else {
+        if (badgeEl) {
+          badgeEl.textContent = 'Credentials Required';
+          badgeEl.className = 'badge badge-warning';
+        }
+        if (alertEl) alertEl.style.display = 'block';
+      }
+      return;
+    }
     try {
-      const res = await fetch('/api/reddit/status');
-      if (res.ok) {
-        const data = await res.json();
+      const res = await safeApiFetch('/api/reddit/status');
+      if (res.ok && res.data) {
+        const data = res.data;
         if (data && data.configured) {
           if (badgeEl) {
             badgeEl.textContent = 'API Connected';
@@ -2292,7 +2336,7 @@ function setupRedditCommunity() {
         }
       }
     } catch (e) {
-      // In offline / GitHub Pages static mode
+      // In offline static mode
       if (alertEl) alertEl.style.display = 'block';
     }
   }
@@ -2321,20 +2365,45 @@ function setupRedditCommunity() {
     if (list) list.style.display = 'none';
     if (countEl) countEl.textContent = 'Searching...';
 
+    if (IS_STATIC_HOST) {
+      if (loading) loading.style.display = 'none';
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<span>Search Reddit</span>';
+      }
+      if (alertEl) alertEl.style.display = 'block';
+      if (emptyState) {
+        emptyState.style.display = 'block';
+        emptyState.innerHTML = `
+          <div style="font-size: 2.2rem; margin-bottom: 10px;">⚙️</div>
+          <h4 style="font-size: 1rem; color: var(--text-main); margin-bottom: 6px;">Reddit API Credentials Required</h4>
+          <p style="font-size: 0.85rem; color: var(--text-secondary); max-width: 480px; margin: 0 auto 12px auto;">
+            Live Reddit search requires an active API backend or API credentials configured in server environment.
+          </p>
+        `;
+      }
+      return;
+    }
+
     try {
-      const res = await fetch('/api/reddit/search', {
+      const res = await safeApiFetch('/api/reddit/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query, subreddit, limit: 10 })
       });
-
-      const data = await res.json();
 
       if (loading) loading.style.display = 'none';
       if (btn) {
         btn.disabled = false;
         btn.innerHTML = '<span>Search Reddit</span>';
       }
+
+      if (!res.ok || !res.data) {
+        if (alertEl) alertEl.style.display = 'block';
+        return;
+      }
+
+      const data = res.data;
 
       if (!data.configured) {
         if (alertEl) alertEl.style.display = 'block';
