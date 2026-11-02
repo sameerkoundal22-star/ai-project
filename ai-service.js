@@ -3,96 +3,8 @@ const https = require('https');
 const { UNIVERSAL_AI_SYSTEM_INSTRUCTION } = require('./ai-system-prompt');
 
 // Knowledge base of popular open-source projects for zero-latency queries
-const POPULAR_PROJECTS = {
-  'facebook/react': {
-    name: 'react',
-    owner: 'facebook',
-    fullName: 'facebook/react',
-    description: 'The library for web and native user interfaces.',
-    stars: 228400,
-    forks: 46200,
-    openIssues: 850,
-    mainLanguage: 'JavaScript',
-    topics: ['react', 'ui', 'frontend', 'declarative', 'components'],
-    activity: 'Active release cadence, daily commits from Meta team',
-    license: 'MIT',
-    techStack: 'JavaScript, JSX, Flow/TypeScript, Rollup, Jest',
-    installCmd: 'npm install react react-dom',
-    quickStart: 'git clone https://github.com/facebook/react.git\ncd react\nyarn install\nyarn test',
-    readme: `# React\n\nReact is a declarative, efficient, and flexible JavaScript library for building user interfaces.\n\n### Core Strengths\n* **Declarative:** Design simple views for each state, React updates efficiently.\n* **Component-Based:** Encapsulated stateful components build complex interfaces.\n* **Learn Once, Write Anywhere:** Works across web, mobile (React Native), and server environments.`,
-    contributing: `# Contributing to React\n\n1. Fork the repository and clone it.\n2. Run \`yarn install\` then run \`yarn test\` to confirm setup.\n3. Find beginner issues labeled \`good first issue\`.\n4. Create a descriptive branch: \`git checkout -b fix/issue-name\`.\n5. Run linting & tests before opening your PR.`,
-    issues: [
-      { id: 101, number: 28410, title: 'Docs: Fix broken navigation anchor in Quick Start tutorial', labels: ['good first issue', 'docs'], difficulty: 'Beginner' },
-      { id: 102, number: 28392, title: 'useActionState hook types regression with async transition handlers', labels: ['Component: Hooks', 'Type: Bug'], difficulty: 'Intermediate' },
-      { id: 103, number: 28290, title: 'Performance: Optimize memory footprint in concurrent scheduler queue', labels: ['Type: Performance', 'Advanced'], difficulty: 'Advanced' }
-    ]
-  },
-  'expressjs/express': {
-    name: 'express',
-    owner: 'expressjs',
-    fullName: 'expressjs/express',
-    description: 'Fast, unopinionated, minimalist web framework for Node.js.',
-    stars: 64500,
-    forks: 11200,
-    openIssues: 180,
-    mainLanguage: 'JavaScript',
-    topics: ['express', 'framework', 'node', 'rest', 'api', 'http'],
-    activity: 'Maintained by OpenJS Foundation contributors',
-    license: 'MIT',
-    techStack: 'Node.js, JavaScript, Mocha, Supertest',
-    installCmd: 'npm install express',
-    quickStart: 'git clone https://github.com/expressjs/express.git\ncd express\nnpm install\nnpm test',
-    readme: `# Express\n\nFast, unopinionated, minimalist web framework for Node.js.\n\n\`\`\`js\nconst express = require('express');\nconst app = express();\n\napp.get('/', (req, res) => res.send('Hello World!'));\napp.listen(3000);\n\`\`\``,
-    contributing: `# Contributing to Express\n\n* Run \`npm test\` to ensure existing tests pass.\n* Keep code style conforming to project ESLint standards.\n* Always include tests for bug fixes.`,
-    issues: [
-      { id: 201, number: 5410, title: 'Improve error handling docstrings in router/layer.js', labels: ['good first issue', 'docs'], difficulty: 'Beginner' },
-      { id: 202, number: 5399, title: 'res.cookie with sameSite=none not setting Secure attribute warning', labels: ['bug', 'security'], difficulty: 'Intermediate' }
-    ]
-  },
-  'vuejs/core': {
-    name: 'core',
-    owner: 'vuejs',
-    fullName: 'vuejs/core',
-    description: 'Vue.js is a progressive, incrementally-adoptable JavaScript framework for building UI on the web.',
-    stars: 46800,
-    forks: 8100,
-    openIssues: 320,
-    mainLanguage: 'TypeScript',
-    topics: ['vue', 'reactive', 'frontend', 'typescript', 'ui'],
-    activity: 'High commit frequency, active core team',
-    license: 'MIT',
-    techStack: 'TypeScript, Vitest, Rollup, Vite',
-    installCmd: 'npm install vue',
-    quickStart: 'pnpm install && pnpm build',
-    readme: `# Vue 3 Core\n\nThe progressive JavaScript framework for building modern web user interfaces.`,
-    contributing: `# Contributing to Vue\n\nVue utilizes \`pnpm\`. Make sure to run \`pnpm test\` before submitting PRs.`,
-    issues: [
-      { id: 301, number: 10420, title: 'Fix SSR hydration warning on template comment nodes', labels: ['bug', 'ssr'], difficulty: 'Intermediate' },
-      { id: 302, number: 10405, title: 'Docs: Clarify watchEffect flush timing with async mutations', labels: ['docs', 'good first issue'], difficulty: 'Beginner' }
-    ]
-  },
-  'vercel/next.js': {
-    name: 'next.js',
-    owner: 'vercel',
-    fullName: 'vercel/next.js',
-    description: 'The React Framework for the Web. Used by some of the world\'s largest companies.',
-    stars: 122000,
-    forks: 26800,
-    openIssues: 1900,
-    mainLanguage: 'JavaScript',
-    topics: ['react', 'nextjs', 'ssr', 'framework', 'rust', 'turbopack'],
-    activity: 'Extremely active daily deployments',
-    license: 'MIT',
-    techStack: 'Rust (Turbopack), TypeScript, React, SWC',
-    installCmd: 'npx create-next-app@latest',
-    quickStart: 'pnpm install && pnpm build',
-    readme: `# Next.js\n\nNext.js enables you to create full-stack Web applications by extending the latest React features.`,
-    contributing: `# Contributing to Next.js\n\nRun \`pnpm test\` in the target packages directory.`,
-    issues: [
-      { id: 401, number: 64210, title: 'Add example recipe for Edge middleware with rate-limiting', labels: ['good first issue', 'area: docs'], difficulty: 'Beginner' }
-    ]
-  }
-};
+// Project knowledge guide templates (no mock counters or metrics)
+const PROJECT_GUIDES = {};
 
 class AIService {
   constructor(apiKey = process.env.GEMINI_API_KEY || '') {
@@ -430,32 +342,7 @@ class AIService {
   }
 
   getPopularRepo(slug) {
-    const s = (slug || '').toLowerCase().trim();
-    if (POPULAR_PROJECTS[s]) return POPULAR_PROJECTS[s];
-
-    // Generic realistic repo generator for any unknown repo
-    const parts = s.split('/');
-    const owner = parts[0] || 'developer';
-    const name = parts[1] || 'project';
-    return {
-      name,
-      owner,
-      fullName: `${owner}/${name}`,
-      description: `Open-source ${name} repository providing developer tools and utilities.`,
-      stars: 1420,
-      forks: 340,
-      openIssues: 18,
-      mainLanguage: 'TypeScript',
-      topics: [name, 'developer-tools', 'open-source'],
-      activity: 'Active contributions and updates',
-      license: 'MIT',
-      readme: `# ${name}\n\nOfficial repository for ${name}.\n\n## Getting Started\n\`\`\`bash\ngit clone https://github.com/${owner}/${name}.git\ncd ${name}\nnpm install\nnpm test\n\`\`\``,
-      contributing: `# Contributing to ${name}\n\nWe welcome all issues, PRs, and suggestions! Please ensure all tests pass before submitting.`,
-      issues: [
-        { id: 501, number: 12, title: `Update documentation and usage guides for ${name}`, labels: ['good first issue', 'docs'], difficulty: 'Beginner' },
-        { id: 502, number: 18, title: `Add automated CI test workflow`, labels: ['enhancement', 'ci'], difficulty: 'Intermediate' }
-      ]
-    };
+    return null;
   }
 }
 

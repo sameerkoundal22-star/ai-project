@@ -217,7 +217,7 @@
           <span class="status-dot"></span>
           <span class="badge-title">Active Target</span>
         </div>
-        <p class="active-repo-name" id="badgeRepoName">facebook/react</p>
+        <p class="active-repo-name" id="badgeRepoName">No target selected</p>
         <span class="active-repo-mode" id="badgeRepoMode">Instant Engine</span>
       </div>
 
@@ -319,29 +319,42 @@
         <!-- Dashboard Analytics -->
         <div class="analytics-grid">
           <div class="stat-card">
-            <div class="stat-num" id="statRepoCount">1,420</div>
+            <div class="stat-num" id="statRepoCount">0</div>
             <div class="stat-label">Repositories Analyzed</div>
-            <div class="stat-trend">↑ 18% this month</div>
+            <div class="stat-trend" id="statRepoDesc">Real live audits</div>
           </div>
           <div class="stat-card">
-            <div class="stat-num" id="statTriageCount">8,940</div>
+            <div class="stat-num" id="statTriageCount">0</div>
             <div class="stat-label">Issues Triaged</div>
-            <div class="stat-trend">↑ 24% this week</div>
+            <div class="stat-trend" id="statTriageDesc">Real classifications</div>
           </div>
           <div class="stat-card">
-            <div class="stat-num" id="statReviewsCount">3,650</div>
+            <div class="stat-num" id="statReviewsCount">0</div>
             <div class="stat-label">Code Reviews</div>
-            <div class="stat-trend">↑ 99.4% accuracy</div>
+            <div class="stat-trend" id="statReviewsDesc">Real code audits</div>
           </div>
           <div class="stat-card">
-            <div class="stat-num" id="statQuestionsCount">14,200</div>
+            <div class="stat-num" id="statQuestionsCount">0</div>
             <div class="stat-label">Questions Asked</div>
-            <div class="stat-trend">↑ 12k answers served</div>
+            <div class="stat-trend" id="statQuestionsDesc">Real developer sessions</div>
           </div>
           <div class="stat-card">
-            <div class="stat-num" id="statContributionsCount">740+</div>
-            <div class="stat-label">Contributions Guided</div>
-            <div class="stat-trend">🎉 First PRs merged</div>
+            <div class="stat-num" id="statContributionsCount">0</div>
+            <div class="stat-label">Roadmap Steps Completed</div>
+            <div class="stat-trend" id="statContributionsDesc">Real guided milestones</div>
+          </div>
+        </div>
+
+        <!-- Real Activity Stream -->
+        <div class="card" style="margin-bottom: 24px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h3 class="card-title" style="margin: 0;">Recent Real Activity</h3>
+            <span style="font-size: 0.8rem; color: var(--text-tertiary);">Live verified events</span>
+          </div>
+          <div id="realActivityList" style="display: flex; flex-direction: column; gap: 8px;">
+            <div style="padding: 12px; background: var(--bg-secondary); border: 1px dashed var(--border-color); border-radius: 6px; color: var(--text-tertiary); font-size: 0.85rem; text-align: center;">
+              No activity yet. Analyze a repository, triage an issue, or review code to view real events.
+            </div>
           </div>
         </div>
 
@@ -475,30 +488,30 @@
       <section id="tab-repo" class="tab-pane">
         <div class="panel-header">
           <div class="panel-title-group">
-            <h2 id="repoDetailTitle">facebook / react</h2>
-            <p id="repoDetailDesc">The library for web and native user interfaces.</p>
+            <h2 id="repoDetailTitle">No repository analyzed yet</h2>
+            <p id="repoDetailDesc">Enter any public GitHub repository above (e.g. facebook/react, expressjs/express, vercel/next.js) to retrieve live metadata.</p>
           </div>
         </div>
 
         <div class="analytics-grid" style="margin-top: 0; margin-bottom: 24px;">
           <div class="stat-card">
-            <div class="stat-num" id="repoStars">228,400</div>
+            <div class="stat-num" id="repoStars">0</div>
             <div class="stat-label">Stars</div>
           </div>
           <div class="stat-card">
-            <div class="stat-num" id="repoForks">46,200</div>
+            <div class="stat-num" id="repoForks">0</div>
             <div class="stat-label">Forks</div>
           </div>
           <div class="stat-card">
-            <div class="stat-num" id="repoIssues">850</div>
+            <div class="stat-num" id="repoIssues">0</div>
             <div class="stat-label">Open Issues</div>
           </div>
           <div class="stat-card">
-            <div class="stat-num" id="repoLang">JavaScript</div>
+            <div class="stat-num" id="repoLang">None</div>
             <div class="stat-label">Primary Language</div>
           </div>
           <div class="stat-card">
-            <div class="stat-num" id="repoLicense">MIT</div>
+            <div class="stat-num" id="repoLicense">None</div>
             <div class="stat-label">License</div>
           </div>
         </div>
@@ -526,11 +539,8 @@
             <div class="form-group">
               <label>Curated Good First Issues</label>
               <div id="repoCuratedIssues">
-                <div style="padding: 8px 12px; background: var(--bg-tertiary); border-radius: 6px; margin-bottom: 6px; font-size: 0.85rem;">
-                  <strong>#28410:</strong> Fix broken navigation anchor in Quick Start tutorial <span class="badge-tag low" style="margin-left: 6px;">Beginner</span>
-                </div>
-                <div style="padding: 8px 12px; background: var(--bg-tertiary); border-radius: 6px; font-size: 0.85rem;">
-                  <strong>#28392:</strong> useActionState hook types regression <span class="badge-tag medium" style="margin-left: 6px;">Intermediate</span>
+                <div style="padding: 10px 12px; background: var(--bg-secondary); border: 1px dashed var(--border-color); border-radius: 6px; font-size: 0.85rem; color: var(--text-tertiary); text-align: center;">
+                  No issues loaded yet. Analyze a repository above to retrieve live GitHub issues.
                 </div>
               </div>
             </div>
@@ -791,29 +801,29 @@
 
         <div class="analytics-grid" style="margin-top: 0; margin-bottom: 24px;">
           <div class="stat-card">
-            <div class="stat-num">98.2%</div>
-            <div class="stat-label">PR Merge Rate</div>
-            <div class="stat-trend">Healthy triage cadence</div>
+            <div class="stat-num" id="insightsStars">0</div>
+            <div class="stat-label">Active Repo Stars</div>
+            <div class="stat-trend">Live GitHub metric</div>
           </div>
           <div class="stat-card">
-            <div class="stat-num">&lt; 14h</div>
-            <div class="stat-label">Avg Review Time</div>
-            <div class="stat-trend">Fast maintainer feedback</div>
+            <div class="stat-num" id="insightsForks">0</div>
+            <div class="stat-label">Active Repo Forks</div>
+            <div class="stat-trend">Live GitHub metric</div>
           </div>
           <div class="stat-card">
-            <div class="stat-num">1,840+</div>
-            <div class="stat-label">Active Contributors</div>
-            <div class="stat-trend">Worldwide community</div>
+            <div class="stat-num" id="insightsOpenIssues">0</div>
+            <div class="stat-label">Live Open Issues</div>
+            <div class="stat-trend">Real backlog count</div>
           </div>
           <div class="stat-card">
-            <div class="stat-num">99.8%</div>
-            <div class="stat-label">CI Pass Rate</div>
-            <div class="stat-trend">Rigorous test pipelines</div>
+            <div class="stat-num" id="insightsLang">None</div>
+            <div class="stat-label">Primary Stack</div>
+            <div class="stat-trend">Detected ecosystem</div>
           </div>
           <div class="stat-card">
-            <div class="stat-num">Weekly</div>
-            <div class="stat-label">Release Cadence</div>
-            <div class="stat-trend">Continuous delivery</div>
+            <div class="stat-num" id="insightsLicense">None</div>
+            <div class="stat-label">Verified License</div>
+            <div class="stat-trend">Community governance</div>
           </div>
         </div>
 
@@ -979,6 +989,7 @@
   </div>
 
   <!-- Client Knowledge Engine & Main App -->
+  <script src="metrics-client.js?v=100"></script>
   <script src="knowledge.js?v=901"></script>
   <script src="app.js?v=990"></script>
 </body>

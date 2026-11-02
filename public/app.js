@@ -91,8 +91,8 @@ document.addEventListener('DOMContentLoaded', () => {
   setupTimelineSteps();
   setupRedditCommunity();
 
-  // Load default repository
-  analyzeRepository('facebook/react');
+  // Synchronize real metrics and activity
+  if (window.ClientMetrics) window.ClientMetrics.syncWithServer();
 });
 
 // Toast Helper
@@ -890,6 +890,15 @@ async function analyzeRepository(repoSlugOrUrl) {
   };
   const targetSlug = ALIASES[cleanInput.toLowerCase()] || cleanInput;
 
+  if (!targetSlug) {
+    showToast('Please enter a valid GitHub repository (e.g. facebook/react).');
+    if (btnText) btnText.textContent = 'Analyze Repository';
+    if (btnSpinner) btnSpinner.style.display = 'none';
+    if (btn) btn.disabled = false;
+    return;
+  }
+
+  // First try backend API
   try {
     const res = await fetch('/api/repo/analyze', {
       method: 'POST',
@@ -901,57 +910,68 @@ async function analyzeRepository(repoSlugOrUrl) {
     if (res.ok && data.success && data.data) {
       currentRepo = data.data;
       updateRepoUI(currentRepo, data.mode);
+      if (window.ClientMetrics) {
+        window.ClientMetrics.recordRepoAnalysis(currentRepo.fullName || currentRepo.name);
+      }
       showToast(`Loaded ${currentRepo.fullName || currentRepo.name}`);
       switchTab('repo');
       return;
+    } else {
+      showToast(data.error || 'Failed to retrieve repository data.');
     }
   } catch (err) {
-    // Client fallback
+    // Client-side direct GitHub fetch if running statically on GitHub Pages
+    try {
+      const parts = targetSlug.split('/');
+      if (parts.length >= 2) {
+        const owner = parts[0];
+        const repo = parts[1];
+        const ghToken = localStorage.getItem('opensource_github_token') || '';
+        const headers = { 'Accept': 'application/vnd.github.v3+json' };
+        if (ghToken) headers['Authorization'] = `Bearer ${ghToken}`;
+
+        const ghRes = await fetch(`https://api.github.com/repos/${owner}/${repo}`, { headers });
+        if (ghRes.ok) {
+          const d = await ghRes.json();
+          currentRepo = {
+            name: d.name,
+            owner: d.owner?.login || owner,
+            fullName: d.full_name || `${owner}/${repo}`,
+            description: d.description || 'Public GitHub repository.',
+            stars: d.stargazers_count || 0,
+            forks: d.forks_count || 0,
+            openIssues: d.open_issues_count || 0,
+            mainLanguage: d.language || 'Code',
+            topics: d.topics || [d.name],
+            activity: `Pushed ${d.pushed_at ? new Date(d.pushed_at).toLocaleDateString() : 'N/A'}`,
+            license: d.license?.name || 'Open Source',
+            html_url: d.html_url,
+            readme: `# ${d.name}\n\n${d.description || ''}`,
+            contributing: `# Contributing to ${d.name}\n\nStandard GitHub pull request workflow applies.`,
+            issues: []
+          };
+          updateRepoUI(currentRepo, 'Live GitHub Client API');
+          if (window.ClientMetrics) {
+            window.ClientMetrics.recordRepoAnalysis(currentRepo.fullName || currentRepo.name);
+          }
+          showToast(`Loaded ${currentRepo.fullName}`);
+          switchTab('repo');
+          return;
+        } else if (ghRes.status === 403) {
+          showToast('GitHub API rate limit reached. Add your GitHub Token in Settings to continue.');
+          return;
+        } else if (ghRes.status === 404) {
+          showToast(`Repository "${targetSlug}" not found on GitHub.`);
+          return;
+        }
+      }
+    } catch (clientErr) {
+      showToast('Network error: Unable to contact GitHub API.');
+    }
   } finally {
     if (btnText) btnText.textContent = 'Analyze Repository';
     if (btnSpinner) btnSpinner.style.display = 'none';
     if (btn) btn.disabled = false;
-  }
-
-  // Client-side fallback
-  if (window.CLIENT_KNOWLEDGE && window.CLIENT_KNOWLEDGE.projects) {
-    const s = targetSlug.toLowerCase();
-    let matched = window.CLIENT_KNOWLEDGE.projects[s];
-    if (!matched) {
-      const keys = Object.keys(window.CLIENT_KNOWLEDGE.projects);
-      const foundKey = keys.find(k => k.includes(s) || s.includes(k.split('/')[1]));
-      matched = foundKey ? window.CLIENT_KNOWLEDGE.projects[foundKey] : null;
-    }
-
-    if (!matched) {
-      const parts = targetSlug.split('/');
-      const owner = parts[0] || 'developer';
-      const name = parts[1] || parts[0] || 'project';
-      matched = {
-        name,
-        owner,
-        fullName: `${owner}/${name}`,
-        description: `Open-source ${name} repository providing developer tools and utilities.`,
-        stars: 3420,
-        forks: 580,
-        openIssues: 24,
-        mainLanguage: 'TypeScript / JavaScript',
-        topics: [name, 'developer-tools', 'open-source'],
-        activity: 'Active contributions and updates',
-        license: 'MIT',
-        readme: '# ' + name + '\n\nWelcome to **' + owner + '/' + name + '**.\n\n## Quick Start\n```bash\ngit clone https://github.com/' + owner + '/' + name + '.git\ncd ' + name + '\nnpm install\nnpm test\n```\n\n## Architecture\nModern modular component architecture.',
-        contributing: '# Contributing to ' + name + '\n\n1. Fork the repo.\n2. Ensure npm test passes.\n3. Open PR.',
-        issues: [
-          { id: 801, number: 14, title: `Documentation: Update usage guide for ${name}`, labels: ['good first issue', 'docs'], difficulty: 'Beginner' },
-          { id: 802, number: 22, title: `Enhancement: Add automated regression test workflow`, labels: ['enhancement', 'ci'], difficulty: 'Intermediate' }
-        ]
-      };
-    }
-
-    currentRepo = matched;
-    updateRepoUI(currentRepo, 'Instant Client Engine');
-    showToast(`Loaded ${currentRepo.fullName || currentRepo.name}`);
-    switchTab('repo');
   }
 }
 
@@ -982,7 +1002,20 @@ function updateRepoUI(repo, mode) {
   if (forksEl) forksEl.textContent = (repo.forks || 0).toLocaleString();
   if (issuesEl) issuesEl.textContent = (repo.openIssues || 0).toLocaleString();
   if (langEl) langEl.textContent = repo.mainLanguage || 'TypeScript';
-  if (licEl) licEl.textContent = repo.license || 'MIT';
+  if (licEl) licEl.textContent = repo.license || 'Open Source';
+  
+  // Real Insights Tab Synchronization
+  const insStars = document.getElementById('insightsStars');
+  const insForks = document.getElementById('insightsForks');
+  const insIssues = document.getElementById('insightsOpenIssues');
+  const insLang = document.getElementById('insightsLang');
+  const insLic = document.getElementById('insightsLicense');
+
+  if (insStars) insStars.textContent = (repo.stars || 0).toLocaleString();
+  if (insForks) insForks.textContent = (repo.forks || 0).toLocaleString();
+  if (insIssues) insIssues.textContent = (repo.openIssues || 0).toLocaleString();
+  if (insLang) insLang.textContent = repo.mainLanguage || 'Code';
+  if (insLic) insLic.textContent = repo.license || 'Open Source';
 
   // Readme
   const readmeBox = document.getElementById('repoReadmeContainer');
@@ -1059,6 +1092,7 @@ function setupChat() {
       removeLoadingMessage(loadingId);
       if (data && data.success) {
         appendChatMessage('assistant', data.reply, data.mode);
+        if (window.ClientMetrics) window.ClientMetrics.recordQuestion(query);
         return;
       }
     } catch (err) {
@@ -1163,6 +1197,7 @@ function setupTriage() {
       const data = await res.json();
       if (data && data.success && data.triage) {
         displayTriageResult(data.triage);
+        if (window.ClientMetrics) window.ClientMetrics.recordTriage(title, currentRepo?.fullName);
         return;
       }
     } catch (e) {
@@ -1284,6 +1319,7 @@ function setupCodeReview() {
       const data = await res.json();
       if (data && data.success && data.review) {
         displayCodeReviewResult(data.review);
+        if (window.ClientMetrics) window.ClientMetrics.recordCodeReview(langSelect ? langSelect.value : 'Code', data.review.score);
         return;
       }
     } catch (e) {
@@ -1358,6 +1394,8 @@ function setupTimelineSteps() {
     card.addEventListener('click', () => {
       steps.forEach(s => s.classList.remove('active'));
       card.classList.add('active');
+      const stepTitle = card.querySelector('h4')?.textContent || 'Roadmap Step';
+      if (window.ClientMetrics) window.ClientMetrics.recordRoadmapStep(stepTitle);
     });
   });
 }
