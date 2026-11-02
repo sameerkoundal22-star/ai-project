@@ -1160,9 +1160,8 @@ function setupChat() {
     conversationHistory.push({ role: 'assistant', content: reply });
     if (window.ClientMetrics) window.ClientMetrics.recordQuestion(query);
   });
-}
 
-function appendChatMessage(role, content, mode = '') {
+  function appendChatMessage(role, content, mode = '') {
     const div = document.createElement('div');
     div.className = `message ${role}`;
     const avatar = role === 'user' ? '👤' : '🤖';
