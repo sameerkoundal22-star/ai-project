@@ -109,10 +109,27 @@ function showToast(message, duration = 3000) {
 let supabaseClient = null;
 
 function getSupabaseConfig() {
-  // Check local storage or global window config
-  const savedUrl = localStorage.getItem('opensource_supabase_url') || window.ENV_SUPABASE_URL || '';
-  const savedKey = localStorage.getItem('opensource_supabase_anon_key') || window.ENV_SUPABASE_ANON_KEY || '';
-  return { url: savedUrl, anonKey: savedKey };
+  // Check from window.SUPABASE_CONFIG module, localStorage, window.__ENV__, or server API
+  const cfg = (window.SUPABASE_CONFIG) || {};
+  const url = cfg.url || localStorage.getItem('opensource_supabase_url') || window.ENV_SUPABASE_URL || '';
+  const anonKey = cfg.anonKey || localStorage.getItem('opensource_supabase_anon_key') || window.ENV_SUPABASE_ANON_KEY || '';
+  return { url, anonKey };
+}
+
+async function fetchServerSupabaseConfig() {
+  try {
+    const res = await fetch('/api/config');
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.supabaseUrl && data.supabaseAnonKey) {
+        localStorage.setItem('opensource_supabase_url', data.supabaseUrl);
+        localStorage.setItem('opensource_supabase_anon_key', data.supabaseAnonKey);
+        initSupabase();
+      }
+    }
+  } catch (e) {
+    // Static hosting environment
+  }
 }
 
 function initSupabase() {
@@ -121,7 +138,7 @@ function initSupabase() {
     try {
       supabaseClient = window.supabase.createClient(url, anonKey);
     } catch (e) {
-      console.warn('Failed to initialize Supabase client:', e);
+      console.warn('Supabase initialization:', e);
     }
   }
 }
@@ -148,6 +165,7 @@ function setupAuthSystem() {
 
   // Initialize Supabase Client
   initSupabase();
+  fetchServerSupabaseConfig();
 
   // Show/Hide Password Toggle
   if (btnTogglePassword && loginPasswordInput) {
@@ -224,15 +242,10 @@ function setupAuthSystem() {
     clearAlert();
     initSupabase();
 
-    if (!supabaseClient) {
-      // Prompt user to provide their Supabase Project URL and Anon Public Key
-      const configModal = document.getElementById('configModal');
-      if (configModal) {
-        showAlert('Please enter your Supabase Project URL & Anon Key in Settings to connect Google OAuth.');
-        configModal.classList.add('open');
-      } else {
-        showAlert('Supabase configuration required. Please provide your Supabase URL & public anon key.');
-      }
+    const { url, anonKey } = getSupabaseConfig();
+
+    if (!url || !anonKey || !supabaseClient) {
+      showAlert('Supabase project configuration not detected. Please configure SUPABASE_URL and SUPABASE_ANON_KEY in your environment.');
       return;
     }
 
