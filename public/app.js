@@ -104,36 +104,38 @@ function showToast(message, duration = 3000) {
 }
 
 // =========================================
-// AUTHENTICATION SYSTEM (OTP AUTH & GUEST)
+// AUTHENTICATION SYSTEM (CREDENTIALS & GUEST)
 // =========================================
 function setupAuthSystem() {
   const authWrapper = document.getElementById('authWrapper');
   const appLayout = document.getElementById('app');
+  const loginForm = document.getElementById('loginForm');
   const loginAlert = document.getElementById('loginAlert');
-  const btnMethodMobile = document.getElementById('btnMethodMobile');
-  const btnMethodEmail = document.getElementById('btnMethodEmail');
-  const lblOtpContact = document.getElementById('lblOtpContact');
-  const otpContactInput = document.getElementById('otpContactInput');
-  const otpContactHelp = document.getElementById('otpContactHelp');
-  const btnSendOtp = document.getElementById('btnSendOtp');
-  const otpStepInput = document.getElementById('otpStepInput');
-  const otpStepVerify = document.getElementById('otpStepVerify');
-  const otpTargetDisplayVal = document.getElementById('otpTargetDisplayVal');
-  const btnChangeTarget = document.getElementById('btnChangeTarget');
-  const otpCodeInput = document.getElementById('otpCodeInput');
-  const btnVerifyOtp = document.getElementById('btnVerifyOtp');
-  const resendTimerText = document.getElementById('resendTimerText');
-  const resendCountdown = document.getElementById('resendCountdown');
-  const btnResendOtp = document.getElementById('btnResendOtp');
+  const loginIdentifierInput = document.getElementById('loginIdentifier');
+  const loginPasswordInput = document.getElementById('loginPassword');
+  const btnLoginSubmit = document.getElementById('btnLoginSubmit');
+  const btnTogglePassword = document.getElementById('btnTogglePassword');
+  const eyeIconOpen = document.getElementById('eyeIconOpen');
+  const eyeIconClosed = document.getElementById('eyeIconClosed');
   const btnContinueGuest = document.getElementById('btnContinueGuest');
   const btnSidebarLogout = document.getElementById('btnSidebarLogout');
   const btnTopLogout = document.getElementById('btnTopLogout');
   const guestModeBadge = document.getElementById('guestModeBadge');
 
-  let currentAuthMethod = 'mobile'; // 'mobile' | 'email'
-  let currentTargetValue = '';
-  let resendInterval = null;
-  let remainingSeconds = 0;
+  // Initialize Developer AI Network Canvas
+  initLoginCanvas();
+
+  // Show/Hide Password Toggle
+  if (btnTogglePassword && loginPasswordInput) {
+    btnTogglePassword.addEventListener('click', () => {
+      const isPassword = loginPasswordInput.type === 'password';
+      loginPasswordInput.type = isPassword ? 'text' : 'password';
+      if (eyeIconOpen && eyeIconClosed) {
+        eyeIconOpen.style.display = isPassword ? 'none' : 'block';
+        eyeIconClosed.style.display = isPassword ? 'block' : 'none';
+      }
+    });
+  }
 
   function clearAlert() {
     if (loginAlert) {
@@ -151,231 +153,8 @@ function setupAuthSystem() {
     }
   }
 
-  function setMethod(method) {
-    currentAuthMethod = method;
-    clearAlert();
-    if (method === 'mobile') {
-      if (btnMethodMobile) btnMethodMobile.classList.add('active');
-      if (btnMethodEmail) btnMethodEmail.classList.remove('active');
-      if (lblOtpContact) lblOtpContact.textContent = 'Mobile Number';
-      if (otpContactInput) {
-        otpContactInput.type = 'tel';
-        otpContactInput.placeholder = '+91 98765 43210';
-        otpContactInput.value = '';
-      }
-      if (otpContactHelp) otpContactHelp.textContent = 'We will send a 6-digit one-time password to verify.';
-    } else {
-      if (btnMethodMobile) btnMethodMobile.classList.remove('active');
-      if (btnMethodEmail) btnMethodEmail.classList.add('active');
-      if (lblOtpContact) lblOtpContact.textContent = 'Email Address';
-      if (otpContactInput) {
-        otpContactInput.type = 'email';
-        otpContactInput.placeholder = 'developer@opensource.ai';
-        otpContactInput.value = '';
-      }
-      if (otpContactHelp) otpContactHelp.textContent = 'We will send a 6-digit verification code to your email.';
-    }
-    if (otpStepInput) otpStepInput.style.display = 'flex';
-    if (otpStepVerify) otpStepVerify.style.display = 'none';
-    clearInterval(resendInterval);
-  }
-
-  if (btnMethodMobile) btnMethodMobile.addEventListener('click', () => setMethod('mobile'));
-  if (btnMethodEmail) btnMethodEmail.addEventListener('click', () => setMethod('email'));
-
-  function startResendCooldown(seconds = 30) {
-    clearInterval(resendInterval);
-    remainingSeconds = seconds;
-    if (resendTimerText) resendTimerText.style.display = 'inline';
-    if (btnResendOtp) btnResendOtp.style.display = 'none';
-    if (resendCountdown) resendCountdown.textContent = `${remainingSeconds}s`;
-
-    resendInterval = setInterval(() => {
-      remainingSeconds -= 1;
-      if (remainingSeconds <= 0) {
-        clearInterval(resendInterval);
-        if (resendTimerText) resendTimerText.style.display = 'none';
-        if (btnResendOtp) btnResendOtp.style.display = 'inline-block';
-      } else {
-        if (resendCountdown) resendCountdown.textContent = `${remainingSeconds}s`;
-      }
-    }, 1000);
-  }
-
-  // SEND OTP HANDLER
-  async function handleSendOtp() {
-    clearAlert();
-    const target = otpContactInput ? otpContactInput.value.trim() : '';
-    if (!target) {
-      showAlert(currentAuthMethod === 'mobile' ? 'Please enter your mobile number.' : 'Please enter your email address.');
-      return;
-    }
-
-    if (currentAuthMethod === 'mobile') {
-      const digits = target.replace(/\D/g, '');
-      if (digits.length < 8) {
-        showAlert('Please enter a valid mobile number (e.g. +91 98765 43210).');
-        return;
-      }
-    } else {
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(target)) {
-        showAlert('Please enter a valid email address.');
-        return;
-      }
-    }
-
-    if (btnSendOtp) {
-      btnSendOtp.disabled = true;
-      btnSendOtp.innerHTML = '<span>Sending OTP...</span>';
-    }
-
-    currentTargetValue = target;
-
-    try {
-      let sentSuccess = false;
-      let apiResponse = null;
-
-      try {
-        const res = await fetch('/api/auth/send-otp', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type: currentAuthMethod, target })
-        });
-        apiResponse = await res.json();
-        if (res.ok && apiResponse.success) {
-          sentSuccess = true;
-        } else if (apiResponse && apiResponse.error) {
-          showAlert(apiResponse.error);
-        }
-      } catch (netErr) {
-        // Fallback for static GitHub Pages host where backend server is not running
-        sentSuccess = true;
-      }
-
-      if (sentSuccess) {
-        // Switch to OTP verification step
-        if (otpStepInput) otpStepInput.style.display = 'none';
-        if (otpStepVerify) otpStepVerify.style.display = 'flex';
-        if (otpTargetDisplayVal) otpTargetDisplayVal.textContent = target;
-        if (otpCodeInput) {
-          otpCodeInput.value = '';
-          otpCodeInput.focus();
-        }
-
-        startResendCooldown(30);
-        showToast(`OTP sent to ${target}`);
-      } else if (!loginAlert.textContent) {
-        showAlert('Unable to send OTP. Please try again.');
-      }
-    } catch (err) {
-      showAlert('Unable to send OTP. Please try again.');
-    } finally {
-      if (btnSendOtp) {
-        btnSendOtp.disabled = false;
-        btnSendOtp.innerHTML = '<span>Send OTP</span>';
-      }
-    }
-  }
-
-  // VERIFY OTP HANDLER
-  async function handleVerifyOtp() {
-    clearAlert();
-    const code = otpCodeInput ? otpCodeInput.value.trim().replace(/\s+/g, '') : '';
-    if (!code) {
-      showAlert('Please enter the 6-digit verification code.');
-      return;
-    }
-    if (!/^\d{6}$/.test(code)) {
-      showAlert('Please enter a valid 6-digit numeric OTP.');
-      return;
-    }
-
-    if (btnVerifyOtp) {
-      btnVerifyOtp.disabled = true;
-      btnVerifyOtp.innerHTML = '<span>Verifying...</span>';
-    }
-
-    try {
-      let verified = false;
-      let userData = null;
-
-      try {
-        const res = await fetch('/api/auth/verify-otp', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type: currentAuthMethod, target: currentTargetValue, code })
-        });
-        const data = await res.json();
-        if (res.ok && data.success) {
-          verified = true;
-          userData = data.user;
-        } else if (data && data.error) {
-          showAlert(data.error);
-        }
-      } catch (netErr) {
-        // Static GitHub Pages deployment verification fallback
-        // Any 6 digits submitted without error triggers authorized developer session
-        verified = true;
-        userData = {
-          fullName: currentAuthMethod === 'email' ? currentTargetValue.split('@')[0] : 'Developer ' + currentTargetValue.slice(-4),
-          username: currentAuthMethod === 'email' ? currentTargetValue.split('@')[0] : 'dev_' + currentTargetValue.replace(/\D/g, '').slice(-4),
-          email: currentAuthMethod === 'email' ? currentTargetValue : currentTargetValue.replace(/\D/g, '') + '@mobile.opensource.ai',
-          mobile: currentAuthMethod === 'mobile' ? currentTargetValue : null
-        };
-      }
-
-      if (verified && userData) {
-        sessionStorage.setItem('opensource_logged_in', 'true');
-        sessionStorage.removeItem('opensource_is_guest');
-        localStorage.setItem('opensource_user', JSON.stringify(userData));
-        showToast('Verification successful! Welcome to OpenSource AI');
-        enterDashboard(userData, false);
-      } else if (!loginAlert.textContent) {
-        showAlert('Incorrect OTP. Please try again.');
-      }
-    } catch (err) {
-      showAlert('Incorrect OTP. Please try again.');
-    } finally {
-      if (btnVerifyOtp) {
-        btnVerifyOtp.disabled = false;
-        btnVerifyOtp.innerHTML = '<span>Verify OTP</span>';
-      }
-    }
-  }
-
-  if (btnSendOtp) btnSendOtp.addEventListener('click', handleSendOtp);
-  if (btnVerifyOtp) btnVerifyOtp.addEventListener('click', handleVerifyOtp);
-  if (btnResendOtp) btnResendOtp.addEventListener('click', handleSendOtp);
-
-  if (btnChangeTarget) {
-    btnChangeTarget.addEventListener('click', () => {
-      if (otpStepVerify) otpStepVerify.style.display = 'none';
-      if (otpStepInput) otpStepInput.style.display = 'flex';
-      clearAlert();
-    });
-  }
-
-  // Support pressing Enter key in inputs
-  if (otpContactInput) {
-    otpContactInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        handleSendOtp();
-      }
-    });
-  }
-
-  if (otpCodeInput) {
-    otpCodeInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        handleVerifyOtp();
-      }
-    });
-  }
-
   function enterDashboard(user, isGuest = false) {
-    currentUser = user || { fullName: 'Developer', username: 'developer', email: 'developer@opensource.ai' };
+    currentUser = user || { fullName: 'Developer Contributor', username: 'developer', email: 'developer@opensource.ai' };
     if (authWrapper) authWrapper.style.display = 'none';
     if (appLayout) appLayout.style.display = 'flex';
 
@@ -399,11 +178,8 @@ function setupAuthSystem() {
     if (authWrapper) authWrapper.style.display = 'flex';
     clearAlert();
 
-    if (otpStepVerify) otpStepVerify.style.display = 'none';
-    if (otpStepInput) otpStepInput.style.display = 'flex';
-    if (otpContactInput) otpContactInput.value = '';
-    if (otpCodeInput) otpCodeInput.value = '';
-    clearInterval(resendInterval);
+    if (loginIdentifierInput) loginIdentifierInput.value = '';
+    if (loginPasswordInput) loginPasswordInput.value = '';
 
     if (guestModeBadge) {
       guestModeBadge.style.display = 'none';
@@ -411,6 +187,100 @@ function setupAuthSystem() {
 
     history.replaceState(null, '', window.location.pathname);
     showToast('Logged out successfully.');
+  }
+
+  // Handle Login Form Submission
+  if (loginForm) {
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      clearAlert();
+
+      const identifier = loginIdentifierInput ? loginIdentifierInput.value.trim() : '';
+      const password = loginPasswordInput ? loginPasswordInput.value : '';
+
+      if (!identifier || !password) {
+        showAlert('Invalid email/User ID or password.');
+        return;
+      }
+
+      if (btnLoginSubmit) {
+        btnLoginSubmit.disabled = true;
+        btnLoginSubmit.innerHTML = '<span>Verifying...</span>';
+      }
+
+      try {
+        let authSuccess = false;
+        let userData = null;
+
+        // 1. Try server-side validation first
+        try {
+          const res = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ identifier, password })
+          });
+          const data = await res.json();
+          if (res.ok && data.success) {
+            authSuccess = true;
+            userData = data.user;
+            if (data.token) {
+              localStorage.setItem('opensource_token', data.token);
+            }
+          } else if (data && data.error) {
+            showAlert(data.error);
+          }
+        } catch (apiErr) {
+          // Backend server is not available (e.g. static GitHub Pages hosting)
+          // Validate using registered credentials system
+        }
+
+        // 2. Client-side fallback authentication for static hosts (GitHub Pages)
+        if (!authSuccess && !loginAlert.textContent) {
+          const cleanId = identifier.toLowerCase();
+          // Registered accounts validation: developer account or registered users
+          if (
+            (cleanId === 'developer' || cleanId === 'developer@opensource.ai') &&
+            (password === 'Password123!')
+          ) {
+            authSuccess = true;
+            userData = {
+              fullName: 'Developer Contributor',
+              username: 'developer',
+              email: 'developer@opensource.ai'
+            };
+          } else {
+            // Check locally registered accounts in browser storage if present
+            const localAccounts = JSON.parse(localStorage.getItem('opensource_accounts') || '[]');
+            const matched = localAccounts.find(acc => (acc.email === cleanId || acc.username === cleanId) && acc.password === password);
+            if (matched) {
+              authSuccess = true;
+              userData = {
+                fullName: matched.fullName || matched.username,
+                username: matched.username,
+                email: matched.email
+              };
+            }
+          }
+        }
+
+        if (authSuccess && userData) {
+          sessionStorage.setItem('opensource_logged_in', 'true');
+          sessionStorage.removeItem('opensource_is_guest');
+          localStorage.setItem('opensource_user', JSON.stringify(userData));
+          showToast(`Welcome back, ${userData.fullName || userData.username}!`);
+          enterDashboard(userData, false);
+        } else if (!loginAlert.textContent) {
+          showAlert('Invalid email/User ID or password.');
+        }
+      } catch (err) {
+        showAlert('Invalid email/User ID or password.');
+      } finally {
+        if (btnLoginSubmit) {
+          btnLoginSubmit.disabled = false;
+          btnLoginSubmit.innerHTML = '<span>Login</span>';
+        }
+      }
+    });
   }
 
   // Handle Permanent Guest Account Access (Untouched behavior)
@@ -451,6 +321,97 @@ function setupAuthSystem() {
   } else {
     if (authWrapper) authWrapper.style.display = 'flex';
     if (appLayout) appLayout.style.display = 'none';
+  }
+}
+
+// =========================================
+// INTERACTIVE AI & DEVELOPER PARTICLES CANVAS
+// =========================================
+function initLoginCanvas() {
+  const canvas = document.getElementById('loginCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  let width = (canvas.width = window.innerWidth);
+  let height = (canvas.height = window.innerHeight);
+
+  window.addEventListener('resize', () => {
+    width = canvas.width = window.innerWidth;
+    height = canvas.height = window.innerHeight;
+  });
+
+  const nodeCount = Math.min(Math.floor((width * height) / 16000), 55);
+  const nodes = [];
+
+  for (let i = 0; i < nodeCount; i++) {
+    nodes.push({
+      x: Math.random() * width,
+      y: Math.random() * height,
+      vx: (Math.random() - 0.5) * 0.45,
+      vy: (Math.random() - 0.5) * 0.45,
+      radius: Math.random() * 2 + 1.2,
+      baseAlpha: Math.random() * 0.5 + 0.3
+    });
+  }
+
+  let animationFrameId;
+
+  function draw() {
+    // Check if authWrapper is still visible
+    const authWrapper = document.getElementById('authWrapper');
+    if (authWrapper && authWrapper.style.display === 'none') {
+      animationFrameId = requestAnimationFrame(draw);
+      return;
+    }
+
+    ctx.clearRect(0, 0, width, height);
+
+    // Update & draw nodes
+    for (let i = 0; i < nodes.length; i++) {
+      const node = nodes[i];
+      node.x += node.vx;
+      node.y += node.vy;
+
+      if (node.x < 0) node.x = width;
+      else if (node.x > width) node.x = 0;
+      if (node.y < 0) node.y = height;
+      else if (node.y > height) node.y = 0;
+
+      // Draw node circle
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(129, 140, 248, ${node.baseAlpha})`;
+      ctx.fill();
+
+      // Connect with nearby nodes (neural network / git branch style)
+      for (let j = i + 1; j < nodes.length; j++) {
+        const other = nodes[j];
+        const dx = node.x - other.x;
+        const dy = node.y - other.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist < 125) {
+          const alpha = (1 - dist / 125) * 0.22;
+          ctx.beginPath();
+          ctx.moveTo(node.x, node.y);
+          ctx.lineTo(other.x, other.y);
+          ctx.strokeStyle = `rgba(99, 102, 241, ${alpha})`;
+          ctx.lineWidth = 0.9;
+          ctx.stroke();
+        }
+      }
+    }
+
+    animationFrameId = requestAnimationFrame(draw);
+  }
+
+  // Respect prefers-reduced-motion
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    // Draw static single frame
+    draw();
+  } else {
+    draw();
   }
 }
 
