@@ -6,6 +6,7 @@ const aiService = require('./ai-service');
 const githubService = require('./github-service');
 const authService = require('./auth-service');
 const redditService = require('./reddit-service');
+const metricsService = require('./metrics-service');
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -148,6 +149,9 @@ const server = http.createServer(async (req, res) => {
         return sendJSON(res, 400, { success: false, error: 'Repository URL is required.' });
       }
       const result = await githubService.analyzeRepository(url);
+      if (result && result.data) {
+        metricsService.recordRepoAnalysis(result.data.fullName || result.data.name);
+      }
       return sendJSON(res, 200, {
         success: true,
         mode: result.mode,
@@ -168,6 +172,7 @@ const server = http.createServer(async (req, res) => {
         return sendJSON(res, 400, { success: false, error: 'Message cannot be empty.' });
       }
       const replyData = await aiService.answerChat({ message, repoContext });
+      metricsService.recordQuestionAsked(message);
       return sendJSON(res, 200, {
         success: true,
         reply: replyData.reply,
@@ -185,6 +190,9 @@ const server = http.createServer(async (req, res) => {
       const body = await parseBody(req);
       const { title, description, repoName } = body;
       const result = await aiService.triageIssue({ title, description, repoName });
+      if (result && result.triage) {
+        metricsService.recordIssueTriage({ title, repoName, ...result.triage });
+      }
       return sendJSON(res, 200, {
         success: true,
         triage: result.triage,
@@ -201,6 +209,9 @@ const server = http.createServer(async (req, res) => {
       const body = await parseBody(req);
       const { language, code, description } = body;
       const result = await aiService.reviewCode({ language, code, description });
+      if (result && result.review) {
+        metricsService.recordCodeReview({ language, score: result.review.score });
+      }
       return sendJSON(res, 200, {
         success: true,
         review: result.review,
@@ -212,6 +223,21 @@ const server = http.createServer(async (req, res) => {
   }
 
   // Config & Public Environment API
+  // Real Metrics & Activity Store API
+  if (pathname === '/api/metrics' && method === 'GET') {
+    return sendJSON(res, 200, {
+      success: true,
+      data: metricsService.getMetrics()
+    });
+  }
+
+  // Record guided contribution roadmap step
+  if (pathname === '/api/metrics/guide-step' && method === 'POST') {
+    const body = await parseBody(req);
+    metricsService.recordContributionGuided(body.stepName || '');
+    return sendJSON(res, 200, { success: true, data: metricsService.getMetrics() });
+  }
+
   if (pathname === '/api/config') {
     if (method === 'GET') {
       return sendJSON(res, 200, {

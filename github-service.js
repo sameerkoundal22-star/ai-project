@@ -137,31 +137,31 @@ class GitHubService {
           name: d.name,
           owner: d.owner?.login || owner,
           fullName: d.full_name || `${owner}/${repo}`,
-          description: d.description || 'Public GitHub project repository.',
-          stars: d.stargazers_count,
-          forks: d.forks_count,
-          openIssues: d.open_issues_count,
+          description: d.description || 'Public GitHub repository.',
+          stars: typeof d.stargazers_count === 'number' ? d.stargazers_count : 0,
+          forks: typeof d.forks_count === 'number' ? d.forks_count : 0,
+          openIssues: typeof d.open_issues_count === 'number' ? d.open_issues_count : 0,
           mainLanguage: d.language || 'Code',
           topics: d.topics || [d.name],
-          activity: `Pushed ${new Date(d.pushed_at).toLocaleDateString()}, Created ${new Date(d.created_at).toLocaleDateString()}`,
+          activity: `Pushed ${d.pushed_at ? new Date(d.pushed_at).toLocaleDateString() : 'N/A'}, Created ${d.created_at ? new Date(d.created_at).toLocaleDateString() : 'N/A'}`,
           license: d.license?.name || 'Open Source',
           html_url: d.html_url,
-          readme: readme || `# ${d.name}\n\n${d.description || ''}`,
-          contributing: contributing || `# Contributing to ${d.name}\n\n1. Fork the repo\n2. Create a feature branch\n3. Run tests\n4. Submit a pull request`,
-          codeOfConduct: codeOfConduct || 'Community follows standard Contributor Covenant guidelines.',
+          readme: readme || `# ${d.name}\n\n${d.description || 'No README file found.'}`,
+          contributing: contributing || `# Contributing to ${d.name}\n\nStandard GitHub pull request workflow applies.`,
+          codeOfConduct: codeOfConduct || 'No CODE_OF_CONDUCT.md detected.',
           issues: issues
         }
       };
     }
 
-    // High quality intelligent dataset fallback
-    const aiService = require('./ai-service');
-    const demo = aiService.getPopularRepo(`${owner}/${repo}`);
-    return {
-      mode: 'Instant Knowledge Mode',
-      reason: 'Providing instant detailed repository architecture and onboarding data.',
-      data: demo
-    };
+    // When live GitHub fetch fails (e.g. rate limit, 404, or unconfigured token), return honest error / unavailable state
+    const errMsg = repoRes.status === 404
+      ? `Repository "${owner}/${repo}" was not found on GitHub (404).`
+      : repoRes.status === 403
+        ? 'GitHub API rate limit reached. Configure your GitHub Token in Settings to view live repository data.'
+        : `Unable to retrieve live GitHub data for "${owner}/${repo}" (${repoRes.error || 'Check network connection'}).`;
+
+    throw new Error(errMsg);
   }
 }
 
