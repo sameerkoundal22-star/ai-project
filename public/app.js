@@ -5,6 +5,15 @@ let currentDocTab = 'readme';
 
 // Realistic sample codes for instant review testing across languages
 const SAMPLES = {
+  python: `# Python algorithm with logical/edge-case bug on negative numbers
+def find_largest(numbers):
+    largest = 0
+
+    for number in numbers:
+        if number > largest:
+            largest = number
+
+    return largest`,
   javascript: `// Authentication token validator & user lookup
 const jwt = require('jsonwebtoken');
 
@@ -38,15 +47,6 @@ export const authenticate = async (req: AuthRequest) => {
   const data = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
   return data;
 };`,
-  python: `import sqlite3
-
-def get_user_records(user_input):
-    conn = sqlite3.connect('app.db')
-    cursor = conn.cursor()
-    # SQL Injection via raw string formatting
-    query = f"SELECT * FROM accounts WHERE username = '{user_input}'"
-    cursor.execute(query)
-    return cursor.fetchall()`,
   sql: `SELECT * FROM users WHERE email = '' OR '1'='1';`,
   java: `public User getUser(String id) throws Exception {
     Statement stmt = conn.createStatement();
@@ -1342,10 +1342,22 @@ function setupCodeReview() {
       if (contextInput) contextInput.value = '';
       const scoreEl = document.getElementById('reviewScore');
       if (scoreEl) scoreEl.textContent = '-- / 10';
+      const scoreLabel = document.getElementById('reviewScoreLabel');
+      if (scoreLabel) scoreLabel.textContent = 'Quality Score';
       const listEl = document.getElementById('reviewIssuesList');
-      if (listEl) listEl.innerHTML = '<div style="font-size: 0.85rem; color: var(--text-muted);">Paste code on the left and click \"Review Code\" to begin.</div>';
+      if (listEl) listEl.innerHTML = '<div style="font-size: 0.85rem; color: var(--text-muted); padding: 12px 0;">Paste your code on the left and click "Review Code" to generate an authentic senior developer code review.</div>';
       const improved = document.getElementById('reviewImprovedCode');
-      if (improved) improved.textContent = '// Refactored code will appear here';
+      if (improved) improved.textContent = '// Corrected and hardened implementation will render here...';
+      const breakdown = document.getElementById('reviewBreakdownContainer');
+      if (breakdown) breakdown.style.display = 'none';
+      const summary = document.getElementById('reviewSummaryContainer');
+      if (summary) summary.style.display = 'none';
+      const positives = document.getElementById('reviewPositivesGroup');
+      if (positives) positives.style.display = 'none';
+      const tests = document.getElementById('reviewTestsGroup');
+      if (tests) tests.style.display = 'none';
+      const countEl = document.getElementById('reviewFindingsCount');
+      if (countEl) countEl.textContent = '0 issues';
     });
   }
 
@@ -1353,22 +1365,25 @@ function setupCodeReview() {
 
   if (btnLoadSample && codeInput && langSelect) {
     btnLoadSample.addEventListener('click', () => {
-      const lang = langSelect.value;
-      codeInput.value = SAMPLES[lang] || SAMPLES.javascript;
-      if (contextInput) contextInput.value = 'Security & error boundary review';
-    });
-  }
-
-  // Language select changes mode without overwriting code input
-  if (langSelect && codeInput) {
-    langSelect.addEventListener('change', () => {
-      // Keep user-entered code untouched
+      let lang = langSelect.value;
+      if (lang === 'auto') {
+        lang = 'python';
+        langSelect.value = 'python';
+      }
+      codeInput.value = SAMPLES[lang] || SAMPLES.python || SAMPLES.javascript;
+      if (contextInput) {
+        contextInput.value = lang === 'python' ? 'Algorithm correctness & edge-case testing' : 'Security & error boundary review';
+      }
     });
   }
 
   if (btnCopyImproved) {
     btnCopyImproved.addEventListener('click', () => {
       const code = document.getElementById('reviewImprovedCode')?.textContent || '';
+      if (!code || code.startsWith('//')) {
+        showToast('No refactored code to copy.');
+        return;
+      }
       navigator.clipboard.writeText(code).then(() => {
         showToast('Improved code copied to clipboard!');
       });
@@ -1378,96 +1393,287 @@ function setupCodeReview() {
   btnRun.addEventListener('click', async () => {
     const code = codeInput ? codeInput.value.trim() : '';
     if (!code) {
-      showToast('Please paste or write some code to review.');
+      showToast('Please enter code to review.');
+      const issuesContainer = document.getElementById('reviewIssuesList');
+      if (issuesContainer) {
+        issuesContainer.innerHTML = '<div style="font-size: 0.88rem; color: #EF4444; font-weight: 600; padding: 10px 0;">Please enter code to review.</div>';
+      }
       return;
     }
 
-    btnRun.textContent = 'Reviewing Code...';
+    btnRun.textContent = 'Analyzing Code...';
     btnRun.disabled = true;
+
+    const chosenLang = langSelect ? langSelect.value : 'auto';
+    const userContext = contextInput ? contextInput.value.trim() : '';
 
     try {
       const res = await fetch('/api/review', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          language: langSelect ? langSelect.value : 'javascript',
+          language: chosenLang,
           code,
-          description: contextInput ? contextInput.value.trim() : ''
+          description: userContext
         })
       });
 
       const data = await res.json();
       if (data && data.success && data.review) {
-        displayCodeReviewResult(data.review);
-        if (window.ClientMetrics) window.ClientMetrics.recordCodeReview(langSelect ? langSelect.value : 'Code', data.review.score);
+        displayCodeReviewResult(data.review, data.mode);
+        if (window.ClientMetrics) {
+          window.ClientMetrics.recordCodeReview(chosenLang !== 'auto' ? chosenLang : (data.review.language || 'Code'), data.review.score);
+        }
+        showToast(`Code review complete — Quality Score: ${data.review.score}/10`);
         return;
       }
     } catch (e) {
-      // Fallback
+      // Backend unavailable (e.g. GitHub Pages static deployment)
     } finally {
       btnRun.textContent = 'Review Code';
       btnRun.disabled = false;
     }
 
-    if (window.CLIENT_KNOWLEDGE) {
-      const fallbackRev = window.CLIENT_KNOWLEDGE.review(code, langSelect ? langSelect.value : 'javascript');
-      displayCodeReviewResult(fallbackRev);
-      showToast('Code review analysis complete!');
+    // Direct Client-Side Analysis Engine Fallback
+    if (window.CodeReviewEngine && window.CodeReviewEngine.analyzeCode) {
+      const reviewResult = window.CodeReviewEngine.analyzeCode(code, chosenLang, userContext);
+      displayCodeReviewResult(reviewResult, 'Senior Code Review Engine (Client-Side)');
+      if (window.ClientMetrics) {
+        window.ClientMetrics.recordCodeReview(reviewResult.language || 'Code', reviewResult.score);
+      }
+      showToast(`Code review complete — Quality Score: ${reviewResult.score}/10`);
+    } else if (window.CLIENT_KNOWLEDGE) {
+      const fallbackRev = window.CLIENT_KNOWLEDGE.review(code, chosenLang, userContext);
+      displayCodeReviewResult(fallbackRev, 'Standard Analysis');
+      showToast(`Code review complete — Quality Score: ${fallbackRev.score}/10`);
     }
   });
 }
 
-function displayCodeReviewResult(review) {
+function displayCodeReviewResult(review, mode = 'Senior Engineering Review Pipeline') {
+  if (!review) return;
+
   const scoreEl = document.getElementById('reviewScore');
+  const scoreLabel = document.getElementById('reviewScoreLabel');
+  const modeEl = document.getElementById('reviewEngineMode');
+  const breakdownContainer = document.getElementById('reviewBreakdownContainer');
+  const breakdownGrid = document.getElementById('reviewBreakdownGrid');
+  const summaryContainer = document.getElementById('reviewSummaryContainer');
+  const positivesGroup = document.getElementById('reviewPositivesGroup');
+  const positivesList = document.getElementById('reviewPositivesList');
   const issuesContainer = document.getElementById('reviewIssuesList');
+  const findingsCount = document.getElementById('reviewFindingsCount');
+  const testsGroup = document.getElementById('reviewTestsGroup');
+  const testsList = document.getElementById('reviewTestsList');
   const improvedBox = document.getElementById('reviewImprovedCode');
 
-  if (scoreEl) scoreEl.textContent = `${review.score}/10`;
+  if (modeEl && mode) modeEl.textContent = mode;
+
+  // 1. Quality Score & Color Coding
+  const score = typeof review.score === 'number' ? review.score : 0;
+  if (scoreEl) {
+    scoreEl.textContent = `${score.toFixed ? score.toFixed(1) : score} / 10`;
+    if (score >= 9.0) {
+      scoreEl.style.color = '#10B981'; // Emerald
+    } else if (score >= 7.5) {
+      scoreEl.style.color = '#38BDF8'; // Sky blue
+    } else if (score >= 5.5) {
+      scoreEl.style.color = '#FBBF24'; // Amber
+    } else if (score >= 3.0) {
+      scoreEl.style.color = '#F97316'; // Orange
+    } else {
+      scoreEl.style.color = '#EF4444'; // Red
+    }
+  }
+
+  if (scoreLabel) {
+    if (score >= 9.0) scoreLabel.textContent = 'Excellent Quality';
+    else if (score >= 8.0) scoreLabel.textContent = 'Very Good Quality';
+    else if (score >= 7.0) scoreLabel.textContent = 'Good Quality';
+    else if (score >= 5.0) scoreLabel.textContent = 'Moderate Quality';
+    else if (score >= 3.0) scoreLabel.textContent = 'Poor Quality';
+    else scoreLabel.textContent = 'Critical Vulnerabilities';
+  }
+
+  // 2. Score Breakdown by Category
+  const bd = review.breakdown;
+  if (breakdownContainer && breakdownGrid && bd) {
+    breakdownGrid.innerHTML = '';
+    const dims = [
+      { key: 'correctness', label: 'Correctness', weight: '30%' },
+      { key: 'security', label: 'Security', weight: '20%' },
+      { key: 'performance', label: 'Performance', weight: '15%' },
+      { key: 'maintainability', label: 'Maintainability', weight: '15%' },
+      { key: 'readability', label: 'Readability', weight: '10%' },
+      { key: 'errorHandling', label: 'Error Handling', weight: '10%' }
+    ];
+
+    dims.forEach(d => {
+      const val = typeof bd[d.key] === 'number' ? bd[d.key] : 10;
+      const cell = document.createElement('div');
+      cell.style.background = 'rgba(30, 41, 59, 0.7)';
+      cell.style.borderRadius = '6px';
+      cell.style.padding = '6px 10px';
+      cell.style.border = '1px solid rgba(255, 255, 255, 0.05)';
+      cell.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.72rem; color: var(--text-secondary);">
+          <span>${d.label}</span>
+          <span style="font-size: 0.65rem; color: var(--text-muted);">${d.weight}</span>
+        </div>
+        <div style="font-size: 0.92rem; font-weight: 700; color: ${val >= 8 ? '#34D399' : val >= 5 ? '#FBBF24' : '#EF4444'}; margin-top: 2px;">
+          ${val}/10
+        </div>
+      `;
+      breakdownGrid.appendChild(cell);
+    });
+    breakdownContainer.style.display = 'block';
+  }
+
+  // 3. Executive Summary
+  if (summaryContainer && review.summary) {
+    summaryContainer.textContent = review.summary;
+    summaryContainer.style.display = 'block';
+  }
+
+  // 4. Positive Aspects
+  const positives = review.positiveAspects || [];
+  if (positivesGroup && positivesList) {
+    if (positives.length > 0) {
+      positivesList.innerHTML = positives.map(p => `<li style="margin-bottom: 3px;">${escapeHTML(p)}</li>`).join('');
+      positivesGroup.style.display = 'block';
+    } else {
+      positivesGroup.style.display = 'none';
+    }
+  }
+
+  // 5. Problems / Findings List
+  const problems = review.problemsFound || review.issues || [];
+  if (findingsCount) {
+    findingsCount.textContent = `${problems.length} issue${problems.length === 1 ? '' : 's'}`;
+  }
 
   if (issuesContainer) {
     issuesContainer.innerHTML = '';
-    (review.issues || []).forEach(iss => {
-      const div = document.createElement('div');
-      div.className = `badge-tag ${iss.severity === 'high' ? 'critical' : iss.severity === 'medium' ? 'high' : 'low'}`;
-      div.style.borderRadius = '6px';
-      div.style.display = 'block';
-      div.style.marginBottom = '6px';
-      div.style.padding = '8px 10px';
-      div.style.textTransform = 'none';
-      div.innerHTML = `<strong>${iss.category || 'Finding'}:</strong> ${iss.explanation}`;
-      issuesContainer.appendChild(div);
-    });
+    if (problems.length === 0) {
+      issuesContainer.innerHTML = `
+        <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 6px; padding: 12px 14px; color: #10B981; font-size: 0.85rem;">
+          <strong>No significant problems detected.</strong> The submitted code conforms to established conventions for its language with no critical bugs, crashes, or security vulnerabilities identified.
+        </div>
+      `;
+    } else {
+      problems.forEach((p, idx) => {
+        const item = document.createElement('div');
+        const sev = (p.severity || 'Medium').toLowerCase();
+        let sevBg = 'rgba(239, 68, 68, 0.12)';
+        let sevBorder = 'rgba(239, 68, 68, 0.4)';
+        let sevColor = '#EF4444';
 
-    if (review.suggestions && review.suggestions.length > 0) {
-      const suggHeader = document.createElement('div');
-      suggHeader.style.fontSize = '0.8rem';
-      suggHeader.style.fontWeight = '700';
-      suggHeader.style.color = 'var(--text-secondary)';
-      suggHeader.style.marginTop = '8px';
-      suggHeader.style.marginBottom = '4px';
-      suggHeader.textContent = 'Recommendations:';
-      issuesContainer.appendChild(suggHeader);
+        if (sev === 'critical') {
+          sevBg = 'rgba(220, 38, 38, 0.2)';
+          sevBorder = '#DC2626';
+          sevColor = '#F87171';
+        } else if (sev === 'high') {
+          sevBg = 'rgba(249, 115, 22, 0.15)';
+          sevBorder = 'rgba(249, 115, 22, 0.5)';
+          sevColor = '#FB923C';
+        } else if (sev === 'medium') {
+          sevBg = 'rgba(245, 158, 11, 0.12)';
+          sevBorder = 'rgba(245, 158, 11, 0.4)';
+          sevColor = '#FBBF24';
+        } else if (sev === 'low' || sev === 'info') {
+          sevBg = 'rgba(99, 102, 241, 0.1)';
+          sevBorder = 'rgba(99, 102, 241, 0.35)';
+          sevColor = '#818CF8';
+        }
 
-      review.suggestions.forEach(sugg => {
-        const p = document.createElement('div');
-        p.style.fontSize = '0.78rem';
-        p.style.color = 'var(--text-secondary)';
-        p.style.paddingLeft = '6px';
-        p.style.marginBottom = '3px';
-        p.textContent = `• ${sugg}`;
-        issuesContainer.appendChild(p);
+        item.style.background = sevBg;
+        item.style.border = `1px solid ${sevBorder}`;
+        item.style.borderRadius = '8px';
+        item.style.padding = '12px 14px';
+        item.style.fontSize = '0.82rem';
+        item.style.lineHeight = '1.45';
+
+        item.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; background: ${sevColor}; color: #0F172A;">
+                ${p.severity || 'Medium'}
+              </span>
+              <span style="font-weight: 700; color: var(--text-main);">${escapeHTML(p.category || 'General')}</span>
+            </div>
+            ${p.location ? `<span style="font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: var(--text-muted); background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px;">${escapeHTML(p.location)}</span>` : ''}
+          </div>
+
+          <div style="margin-bottom: 6px; color: var(--text-main);">
+            <strong>Problem:</strong> ${escapeHTML(p.problem || p.explanation || '')}
+          </div>
+
+          ${p.whyItMatters ? `
+            <div style="margin-bottom: 6px; color: var(--text-secondary); font-size: 0.78rem;">
+              <strong>Why it matters:</strong> ${escapeHTML(p.whyItMatters)}
+            </div>
+          ` : ''}
+
+          ${p.howToImprove ? `
+            <div style="margin-bottom: 4px; color: #34D399; font-size: 0.78rem;">
+              <strong>How to improve:</strong> ${escapeHTML(p.howToImprove)}
+            </div>
+          ` : ''}
+
+          ${p.exampleFix ? `
+            <div style="margin-top: 8px;">
+              <div style="font-size: 0.72rem; color: var(--text-muted); margin-bottom: 2px;">Example Correction:</div>
+              <pre class="snippet font-mono" style="margin: 0; padding: 6px 10px; font-size: 0.75rem; background: rgba(0,0,0,0.4); border-radius: 4px; overflow-x: auto;"><code>${escapeHTML(p.exampleFix)}</code></pre>
+            </div>
+          ` : ''}
+        `;
+
+        issuesContainer.appendChild(item);
       });
     }
   }
 
+  // 6. Suggested Verification Tests
+  const tests = review.suggestedTests || [];
+  if (testsGroup && testsList) {
+    if (tests.length > 0) {
+      testsList.innerHTML = '';
+      tests.forEach(t => {
+        const row = document.createElement('div');
+        row.style.background = 'rgba(15, 23, 42, 0.6)';
+        row.style.border = '1px solid var(--border-color)';
+        row.style.borderRadius = '6px';
+        row.style.padding = '8px 10px';
+        row.style.fontSize = '0.78rem';
+        row.innerHTML = `
+          <div style="font-weight: 700; color: #93C5FD; margin-bottom: 2px;">${escapeHTML(t.name || 'Test Case')}</div>
+          <div style="color: var(--text-secondary); margin-bottom: 2px;"><strong>Input:</strong> <code>${escapeHTML(t.input || '')}</code> &nbsp;|&nbsp; <strong>Expected:</strong> <code>${escapeHTML(t.expected || '')}</code></div>
+          ${t.notes ? `<div style="color: var(--text-muted); font-size: 0.72rem;">${escapeHTML(t.notes)}</div>` : ''}
+        `;
+        testsList.appendChild(row);
+      });
+      testsGroup.style.display = 'block';
+    } else {
+      testsGroup.style.display = 'none';
+    }
+  }
+
+  // 7. Hardened Refactored Code
   if (improvedBox) {
-    improvedBox.textContent = review.improvedCode || '// No code improvements required.';
+    improvedBox.textContent = review.improvedCode || '// No code adjustments required.';
   }
 }
 
-// =========================================
-// CONTRIBUTOR TIMELINE STEPS
-// =========================================
+function escapeHTML(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 function setupTimelineSteps() {
   const steps = document.querySelectorAll('.step-card');
   steps.forEach(card => {

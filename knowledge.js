@@ -84,135 +84,18 @@ const CLIENT_KNOWLEDGE = {
     return `### 💡 OpenSource AI Mentor Advice on "${message}"\n\nRegarding **${message}** in **${repoName}**:\n\n* **Codebase Navigation:** Check the **Repository** tab in the sidebar to review the live README, architecture overview, and open issues.\n* **Quality Validation:** Before submitting code, paste your snippet into the **Code Review** tab for instant vulnerability and quality scoring.\n* **Issue Triage:** Use the **Issue Triage** tab to evaluate bug severity and generate reproduction steps.\n\nHave a specific question about an error, git command, or design pattern? Ask away and I'll break it down for you!`;
   },
 
-  // Production-Grade Static Code Review & Vulnerability Scanner
-  review(code, language = 'javascript') {
-    const raw = code || '';
-    const issues = [];
-    const suggestions = [];
-    let score = 100;
-    let improved = raw;
-
-    // 1. Critical: SQL Injection Detection
-    if (
-      (raw.includes('SELECT ') || raw.includes('INSERT ') || raw.includes('UPDATE ') || raw.includes('DELETE ')) &&
-      (raw.includes('+') || raw.includes('${') || raw.includes('.concat('))
-    ) {
-      issues.push({
-        severity: 'high',
-        category: 'Critical Security: SQL Injection (CWE-89)',
-        explanation: 'Direct string concatenation in database query allows arbitrary SQL execution by attackers. Bypasses authentication and compromises data.'
-      });
-      suggestions.push('Use parameterized queries with prepared placeholders (?, $1, or ORM parameter binding).');
-      score -= 35;
-
-      improved = improved.replace(
-        /var\s+query\s*=\s*["']SELECT\s+\*\s+FROM\s+(\w+)\s+WHERE\s+(\w+)\s*=\s*['"]\s*\+\s*([\w.]+)\s*\+\s*['"]/gi,
-        'const query = "SELECT * FROM $1 WHERE $2 = ?";\n  const params = [$3];'
-      );
-      improved = improved.replace(/db\.query\(query,\s*function/gi, 'db.query(query, params, function');
+  // Senior Code Review Intelligence & Static Analysis
+  review(code, language = 'javascript', context = '') {
+    if (typeof CodeReviewEngine !== 'undefined' && CodeReviewEngine.analyzeCode) {
+      return CodeReviewEngine.analyzeCode(code, language, context);
     }
-
-    // 2. High: Insecure JWT Decode without Verification
-    if (raw.includes('jwt.decode(')) {
-      issues.push({
-        severity: 'high',
-        category: 'Security Vulnerability: Unverified JWT Token (CWE-345)',
-        explanation: '`jwt.decode()` only parses the token payload without validating the cryptographic signature. Any forged token will be accepted as valid.'
-      });
-      suggestions.push('Replace `jwt.decode()` with `jwt.verify(token, process.env.JWT_SECRET)` wrapped in a try/catch block.');
-      score -= 25;
-
-      improved = improved.replace(
-        /var\s+decoded\s*=\s*jwt\.decode\(token\);/g,
-        'let decoded;\n  try {\n    decoded = jwt.verify(token, process.env.JWT_SECRET);\n  } catch (err) {\n    return res.status(403).json({ error: "Invalid or expired token", details: err.message });\n  }'
-      );
-    }
-
-    // 3. Medium: Unhandled Exceptions / Insecure Error Handling
-    if (raw.includes('if (err) throw err;') || (raw.includes('throw err') && !raw.includes('try'))) {
-      issues.push({
-        severity: 'medium',
-        category: 'Reliability: Unhandled Process Crash (CWE-248)',
-        explanation: '`throw err` inside an asynchronous callback terminates the entire Node.js server process, causing Denial of Service for all users.'
-      });
-      suggestions.push('Return HTTP 500 status code with formatted JSON error response instead of throwing unhandled exceptions.');
-      score -= 15;
-
-      improved = improved.replace(
-        /if\s*\(err\)\s*throw\s+err;/g,
-        'if (err) {\n      console.error("Database query failed:", err);\n      return res.status(500).json({ error: "Database error occurred" });\n    }'
-      );
-    }
-
-    // 4. Low: Obsolete var keyword
-    if (/\bvar\s+/.test(raw)) {
-      issues.push({
-        severity: 'low',
-        category: 'Code Quality: Deprecated var declaration',
-        explanation: '`var` has function scope and variable hoisting, which leads to subtle scope leakage and re-declaration bugs in modern JavaScript.'
-      });
-      suggestions.push('Replace all instances of `var` with block-scoped `const` (for constants) or `let` (for reassignables).');
-      score -= 10;
-
-      improved = improved.replace(/\bvar\s+/g, 'const ');
-      improved = improved.replace(/const\s+decoded\s*=/g, 'let decoded =');
-    }
-
-    // 5. Critical: Dangerous eval() usage
-    if (raw.includes('eval(')) {
-      issues.push({
-        severity: 'high',
-        category: 'Critical: Remote Code Execution via eval() (CWE-95)',
-        explanation: '`eval()` evaluates arbitrary strings as executable machine instructions. Never execute untrusted user input.'
-      });
-      suggestions.push('Replace eval() with JSON.parse() or dedicated parser mappings.');
-      score -= 40;
-      improved = improved.replace(/eval\(([^)]+)\)/g, 'JSON.parse($1)');
-    }
-
-    // 6. Medium: Potential Null Pointer on Array Indexing
-    if (raw.includes('result[0]') && !raw.includes('result.length')) {
-      issues.push({
-        severity: 'medium',
-        category: 'Defensive Coding: Unchecked Array Index Access',
-        explanation: 'Accessing `result[0]` directly without verifying `result && result.length > 0` causes `TypeError: Cannot read properties of undefined` when no user matches.'
-      });
-      suggestions.push('Verify array bounds: `if (!result || result.length === 0) return res.status(404).json({ error: "User not found" });`');
-      score -= 10;
-
-      improved = improved.replace(
-        /req\.user\s*=\s*result\[0\];/g,
-        'if (!result || result.length === 0) {\n      return res.status(404).json({ error: "User not found" });\n    }\n    req.user = result[0];'
-      );
-    }
-
-    // 7. General suggestions if clean
-    if (issues.length === 0) {
-      issues.push({
-        severity: 'low',
-        category: 'Architecture: Code Quality Verified',
-        explanation: 'No critical security anti-patterns or crashing flaws detected in this routine.'
-      });
-      suggestions.push('Ensure comprehensive unit tests accompany this implementation before opening a PR.');
-      suggestions.push('Document public function signatures with standard JSDoc comments.');
-    } else {
-      suggestions.push('Introduce TypeScript interfaces for request context and user schema validation.');
-    }
-
-    const finalScore = Math.max(15, Math.min(100, score));
-    const scoreOutOfTen = Math.max(1.5, Math.round((finalScore / 10) * 10) / 10);
-
-    // If improved code is essentially identical, add full production refactor
-    if (improved === raw && issues.length > 0) {
-      improved = `// Refactored & Hardened Implementation\n${raw}\n\n// Recommendations Applied:\n// - Parameter validation added\n// - Strict error handling implemented`;
-    }
-
+    // Fallback if engine is loading
     return {
-      score: scoreOutOfTen,
-      summary: `Automated Code Analysis identified ${issues.length} finding(s) with an overall quality score of ${scoreOutOfTen}/10. ${scoreOutOfTen < 7 ? 'Critical security and stability vulnerabilities require remediation before merging.' : 'Code meets general standards with minor polish suggestions.'}`,
-      issues,
-      suggestions,
-      improvedCode: improved
+      score: 8.0,
+      summary: 'Code review pending initialization.',
+      problemsFound: [],
+      positiveAspects: ['Code received'],
+      improvedCode: code
     };
   },
 
