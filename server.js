@@ -140,6 +140,19 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  // GitHub Rate Limit Status API
+  if (pathname === '/api/repo/rate-limit' && method === 'GET') {
+    try {
+      const rateInfo = await githubService.getRateLimit();
+      return sendJSON(res, 200, {
+        success: true,
+        data: rateInfo
+      });
+    } catch (err) {
+      return sendJSON(res, 500, { success: false, error: err.message });
+    }
+  }
+
   // Analyze Repository API
   if (pathname === '/api/repo/analyze' && method === 'POST') {
     try {

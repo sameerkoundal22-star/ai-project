@@ -474,6 +474,38 @@
 
       <!-- TAB 3: REPOSITORY ANALYZER -->
       <section id="tab-repo" class="tab-pane">
+          <!-- Rate Limit & Diagnostic Alert Banner -->
+          <div id="repoRateLimitBanner" class="card" style="display: none; background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.4); margin-bottom: 20px; padding: 16px 20px;">
+            <div style="display: flex; gap: 14px; align-items: flex-start;">
+              <div style="font-size: 1.6rem; color: #EF4444; line-height: 1;">⚠️</div>
+              <div style="flex: 1;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 8px;">
+                  <h4 id="repoRateLimitTitle" style="color: #F87171; font-size: 0.96rem; font-weight: 700; margin: 0;">GitHub API Rate Limit Reached</h4>
+                  <div style="font-size: 0.76rem; background: rgba(15, 23, 42, 0.7); padding: 3px 8px; border-radius: 4px; border: 1px solid var(--border-color); color: var(--text-secondary);">
+                    Remaining Requests: <strong id="repoRateLimitRemaining" style="color: #EF4444;">0</strong>
+                  </div>
+                </div>
+                <p id="repoRateLimitMessage" style="font-size: 0.84rem; color: var(--text-secondary); line-height: 1.5; margin: 0 0 10px 0;">
+                  The public GitHub REST API quota for unauthenticated requests from your network is temporarily exhausted (60 requests/hr).
+                </p>
+                <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-color); border-radius: 6px; padding: 8px 12px; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 12px;">
+                  <div>Reset Time: <strong id="repoRateLimitResetTime" style="color: #93C5FD;">Calculating...</strong></div>
+                  <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">Your repository view has not been populated with fake or simulated statistics.</div>
+                </div>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                  <button class="btn btn-secondary btn-sm" id="btnOpenSettingsFromRateLimit" style="border-color: rgba(99, 102, 241, 0.4); color: #818CF8;">
+                    Configure GitHub Token in Settings
+                  </button>
+                  <button class="btn btn-secondary btn-sm" id="btnRetryRepoAnalysis">
+                    Retry Analysis
+                  </button>
+                  <button class="btn btn-secondary btn-sm" id="btnDismissRateLimit" style="color: var(--text-muted);">
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
           <div class="panel-header">
             <div class="panel-title-group">
               <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
