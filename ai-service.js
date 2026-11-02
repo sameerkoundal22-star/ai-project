@@ -222,35 +222,65 @@ class AIService {
   }
 
   // AI Chatbot Answer
-  async answerChat({ message, repoContext }) {
+  async answerChat({ message, repoContext, redditDiscussions = [] }) {
+    let redditContextText = "";
+    let citations = [];
+
+    if (Array.isArray(redditDiscussions) && redditDiscussions.length > 0) {
+      redditContextText = "\n\nRelevant Public Reddit Discussions:\n" + redditDiscussions.map((p, idx) => {
+        return "[" + (idx + 1) + "] (" + p.subreddit + ") \"" + p.title + "\" - Score: " + p.score + "\nSummary: " + (p.summary || "Discussion thread") + "\nLink: " + p.url;
+      }).join("\n\n");
+
+      citations = redditDiscussions.map(p => ({
+        subreddit: p.subreddit,
+        title: p.title,
+        url: p.url,
+        score: p.score
+      }));
+    }
+
     if (this.isConfigured()) {
-      const systemInstruction = 'You are OpenSource AI, a helpful, experienced senior open-source mentor. Keep answers clear, supportive, and formatted in clean markdown.';
-      const prompt = `Active Repo: ${repoContext ? repoContext.fullName : 'General'}\nUser Query: ${message}`;
+      const systemInstruction = "You are OpenSource AI, an experienced senior open-source mentor. Answer the developer query clearly using the provided repository context and any Reddit community discussions. Summarize community insights accurately and always cite the discussion links. Never fabricate posts or stats.";
+      const prompt = "Active Repo: " + (repoContext ? repoContext.fullName : "General") + "\nUser Query: " + message + redditContextText;
       const reply = await this.generateText(prompt, systemInstruction);
       if (reply) {
-        return { reply, mode: 'Live AI (Gemini)', provider: 'Google Gemini 1.5' };
+        return {
+          reply,
+          mode: "Live AI (Gemini)",
+          provider: "Google Gemini 1.5",
+          citations: citations.length > 0 ? citations : undefined
+        };
       }
     }
 
     // Smart Instant Mentor Answer
     const q = message.toLowerCase();
-    const repoName = repoContext?.name || 'the project';
+    const repoName = repoContext?.name || "the project";
 
-    let answer = '';
-    if (q.includes('how to contribute') || q.includes('start')) {
-      answer = `### 🚀 Step-by-Step Guide to Contribute to **${repoName}**\n\n1. **Fork & Clone:** Fork on GitHub, then run \`git clone https://github.com/YOUR_USER/${repoName}.git\`\n2. **Install & Test:** Run dependencies install and execute tests to confirm local setup.\n3. **Pick an Issue:** Check open issues tagged \`good first issue\` or \`documentation\`.\n4. **Create Branch:** \`git checkout -b feature/issue-fix\`\n5. **Open PR:** Submit with clear descriptions and test steps.`;
-    } else if (q.includes('issue') || q.includes('beginner')) {
-      answer = `### 🐛 Recommended Starter Issues for **${repoName}**\n\n* **Docs:** Fixing typos or expanding installation guides is the lowest risk way to get your first merged PR.\n* **Unit Tests:** Adding test cases for uncovered branches builds deep familiarity with the codebase.\n* **Good First Issue:** Check the issues tab in the Repository module for curated starter tickets.`;
-    } else if (q.includes('install') || q.includes('setup')) {
-      answer = `### 🛠️ Setup Instructions for **${repoName}**\n\n\`\`\`bash\ngit clone https://github.com/${repoContext?.fullName || 'facebook/react'}.git\ncd ${repoName}\nnpm install\nnpm test\n\`\`\`\n\nMake sure your Node.js version is up to date before running the test suite.`;
+    let answer = "";
+    if (q.includes("how to contribute") || q.includes("start")) {
+      answer = "### 🚀 Step-by-Step Guide to Contribute to **" + repoName + "**\n\n1. **Fork & Clone:** Fork on GitHub, then run `git clone https://github.com/YOUR_USER/" + repoName + ".git`\n2. **Install & Test:** Run dependencies install and execute tests to confirm local setup.\n3. **Pick an Issue:** Check open issues tagged `good first issue` or `documentation`.\n4. **Create Branch:** `git checkout -b feature/issue-fix`\n5. **Open PR:** Submit with clear descriptions and test steps.";
+    } else if (q.includes("issue") || q.includes("beginner")) {
+      answer = "### 🐛 Recommended Starter Issues for **" + repoName + "**\n\n* **Docs:** Fixing typos or expanding installation guides is the lowest risk way to get your first merged PR.\n* **Unit Tests:** Adding test cases for uncovered branches builds deep familiarity with the codebase.\n* **Good First Issue:** Check the issues tab in the Repository module for curated starter tickets.";
+    } else if (q.includes("install") || q.includes("setup")) {
+      answer = "### 🛠️ Setup Instructions for **" + repoName + "**\n\n```bash\ngit clone https://github.com/" + (repoContext?.fullName || "facebook/react") + ".git\ncd " + repoName + "\nnpm install\nnpm test\n```\n\nMake sure your Node.js version is up to date before running the test suite.";
     } else {
-      answer = `### 💡 Mentor Advice on "${message}"\n\nFor **${repoName}**, maintainers value clarity, adherence to style guidelines, and respectful communication.\n\n* Check the **Repository** tab to view the live README and contributing docs.\n* Check the **Issue Triage** tab to analyze bug reports.\n* Check **Code Review** to inspect your code quality before opening a PR!`;
+      answer = "### 💡 Mentor Advice on \"" + message + "\"\n\nFor **" + repoName + "**, maintainers value clarity, adherence to style guidelines, and respectful communication.\n\n* Check the **Repository** tab to view the live README and contributing docs.\n* Check the **Issue Triage** tab to analyze bug reports.\n* Check **Code Review** to inspect your code quality before opening a PR!";
+    }
+
+    // Append synthesized Reddit community insights if present
+    if (citations.length > 0) {
+      answer += "\n\n---\n\n### 💬 Relevant Community Discussions\n";
+      citations.forEach(c => {
+        answer += "* **" + c.subreddit + "** — [" + c.title + "](" + c.url + ") *(Score: " + c.score + ")*\n";
+      });
     }
 
     return {
       reply: answer,
-      mode: 'Instant Mentor Mode',
-      provider: 'OpenSource AI Engine'
+      mode: "Instant Mentor Mode",
+      provider: "OpenSource AI Engine",
+      citations: citations.length > 0 ? citations : undefined
     };
   }
 

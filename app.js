@@ -89,6 +89,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupCodeReview();
   setupConfigModal();
   setupTimelineSteps();
+  setupRedditCommunity();
 
   // Load default repository
   analyzeRepository('facebook/react');
@@ -573,7 +574,8 @@ const ROUTE_MAP = {
   'triage': '#/issue-triage',
   'review': '#/code-review',
   'guide': '#/contributor-guide',
-  'insights': '#/github-insights'
+  'insights': '#/github-insights',
+  'reddit': '#/reddit-community'
 };
 
 const INVERSE_ROUTE_MAP = {
@@ -1379,6 +1381,10 @@ function setupConfigModal() {
   function loadSettings() {
     if (inputSupabaseUrl) inputSupabaseUrl.value = localStorage.getItem('opensource_supabase_url') || '';
     if (inputSupabaseAnonKey) inputSupabaseAnonKey.value = localStorage.getItem('opensource_supabase_anon_key') || '';
+    const inputRedditId = document.getElementById('inputRedditClientId');
+    const inputRedditSec = document.getElementById('inputRedditClientSecret');
+    if (inputRedditId) inputRedditId.value = localStorage.getItem('opensource_reddit_client_id') || '';
+    if (inputRedditSec) inputRedditSec.value = localStorage.getItem('opensource_reddit_client_secret') || '';
     if (inputGeminiKey) inputGeminiKey.value = localStorage.getItem('opensource_gemini_key') || '';
     if (inputGithubToken) inputGithubToken.value = localStorage.getItem('opensource_github_token') || '';
   }
@@ -1405,6 +1411,10 @@ function setupConfigModal() {
     btnSave.addEventListener('click', () => {
       if (inputSupabaseUrl) localStorage.setItem('opensource_supabase_url', inputSupabaseUrl.value.trim());
       if (inputSupabaseAnonKey) localStorage.setItem('opensource_supabase_anon_key', inputSupabaseAnonKey.value.trim());
+      const inputRedditId = document.getElementById('inputRedditClientId');
+      const inputRedditSec = document.getElementById('inputRedditClientSecret');
+      if (inputRedditId) localStorage.setItem('opensource_reddit_client_id', inputRedditId.value.trim());
+      if (inputRedditSec) localStorage.setItem('opensource_reddit_client_secret', inputRedditSec.value.trim());
       if (inputGeminiKey) localStorage.setItem('opensource_gemini_key', inputGeminiKey.value.trim());
       if (inputGithubToken) localStorage.setItem('opensource_github_token', inputGithubToken.value.trim());
 
@@ -1416,4 +1426,201 @@ function setupConfigModal() {
 
   // Load existing configuration on start
   loadSettings();
+}
+
+
+// =========================================
+// REDDIT COMMUNITY DATA INTEGRATION
+// =========================================
+function setupRedditCommunity() {
+  const form = document.getElementById('redditSearchForm');
+  const input = document.getElementById('redditQueryInput');
+  const select = document.getElementById('redditSubredditSelect');
+  const btn = document.getElementById('btnSearchReddit');
+  const list = document.getElementById('redditDiscussionsList');
+  const loading = document.getElementById('redditLoadingState');
+  const emptyState = document.getElementById('redditEmptyState');
+  const countEl = document.getElementById('redditResultsCount');
+  const alertEl = document.getElementById('redditSetupAlert');
+  const badgeEl = document.getElementById('redditStatusBadge');
+
+  if (!form || !input) return;
+
+  // Check Reddit backend status on load
+  checkRedditStatus();
+
+  async function checkRedditStatus() {
+    try {
+      const res = await fetch('/api/reddit/status');
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.configured) {
+          if (badgeEl) {
+            badgeEl.textContent = 'API Connected';
+            badgeEl.className = 'badge badge-success';
+          }
+          if (alertEl) alertEl.style.display = 'none';
+        } else {
+          if (badgeEl) {
+            badgeEl.textContent = 'Credentials Required';
+            badgeEl.className = 'badge badge-warning';
+          }
+          if (alertEl) alertEl.style.display = 'block';
+        }
+      }
+    } catch (e) {
+      // In offline / GitHub Pages static mode
+      if (alertEl) alertEl.style.display = 'block';
+    }
+  }
+
+  // Quick Chips click handler
+  document.querySelectorAll('.reddit-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      input.value = chip.getAttribute('data-q') || '';
+      form.dispatchEvent(new Event('submit'));
+    });
+  });
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const query = input.value.trim();
+    if (!query) return;
+
+    const subreddit = select ? select.value : '';
+
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<span>Searching Reddit...</span>';
+    }
+    if (loading) loading.style.display = 'flex';
+    if (emptyState) emptyState.style.display = 'none';
+    if (list) list.style.display = 'none';
+    if (countEl) countEl.textContent = 'Searching...';
+
+    try {
+      const res = await fetch('/api/reddit/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, subreddit, limit: 10 })
+      });
+
+      const data = await res.json();
+
+      if (loading) loading.style.display = 'none';
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<span>Search Reddit</span>';
+      }
+
+      if (!data.configured) {
+        if (alertEl) alertEl.style.display = 'block';
+        if (emptyState) {
+          emptyState.style.display = 'block';
+          emptyState.innerHTML = `
+            <div style="font-size: 2.2rem; margin-bottom: 10px;">⚙️</div>
+            <h4 style="font-size: 1rem; color: var(--text-main); margin-bottom: 6px;">Reddit API Credentials Required</h4>
+            <p style="font-size: 0.85rem; color: var(--text-secondary); max-width: 480px; margin: 0 auto 12px auto;">
+              Reddit data is currently unavailable. Configure <code>REDDIT_CLIENT_ID</code> and <code>REDDIT_CLIENT_SECRET</code> in your server environment to retrieve live discussions.
+            </p>
+          `;
+        }
+        if (countEl) countEl.textContent = 'Setup required';
+        return;
+      }
+
+      if (data.success && Array.isArray(data.posts) && data.posts.length > 0) {
+        renderRedditPosts(data.posts);
+      } else {
+        if (emptyState) {
+          emptyState.style.display = 'block';
+          emptyState.innerHTML = `
+            <div style="font-size: 2.2rem; margin-bottom: 10px;">🔍</div>
+            <h4 style="font-size: 1rem; color: var(--text-main); margin-bottom: 6px;">No discussions found</h4>
+            <p style="font-size: 0.85rem; color: var(--text-secondary); max-width: 420px; margin: 0 auto;">
+              No public Reddit discussions found for "${query}". Try broader search terms like "git pull request", "python contribution", or "react".
+            </p>
+          `;
+        }
+        if (countEl) countEl.textContent = '0 discussions found';
+      }
+    } catch (err) {
+      if (loading) loading.style.display = 'none';
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<span>Search Reddit</span>';
+      }
+      if (emptyState) {
+        emptyState.style.display = 'block';
+        emptyState.innerHTML = `
+          <div style="font-size: 2.2rem; margin-bottom: 10px;">⚠️</div>
+          <h4 style="font-size: 1rem; color: var(--text-main); margin-bottom: 6px;">Reddit data is currently unavailable</h4>
+          <p style="font-size: 0.85rem; color: var(--text-secondary); max-width: 420px; margin: 0 auto;">
+            Unable to connect to the Reddit API endpoint. Please check your network connection or API quota.
+          </p>
+        `;
+      }
+      if (countEl) countEl.textContent = 'Error connecting';
+    }
+  });
+
+  function renderRedditPosts(posts) {
+    if (!list) return;
+    list.innerHTML = '';
+
+    posts.forEach(post => {
+      const card = document.createElement('div');
+      card.className = 'reddit-post-card';
+
+      const dateStr = post.createdAt ? new Date(post.createdAt).toLocaleDateString() : 'Recent';
+
+      card.innerHTML = `
+        <div class="reddit-post-header">
+          <span class="reddit-sub-pill">${post.subreddit}</span>
+          <div class="reddit-post-meta">
+            <span>Posted by ${post.author}</span>
+            <span>•</span>
+            <span>${dateStr}</span>
+          </div>
+        </div>
+
+        <h4 class="reddit-post-title">${escapeHTML(post.title)}</h4>
+
+        ${post.summary ? `<p class="reddit-post-summary">${escapeHTML(post.summary)}</p>` : ''}
+
+        <div class="reddit-post-footer">
+          <div class="reddit-stats-group">
+            <span class="reddit-stat-item">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+              ${post.score.toLocaleString()} points
+            </span>
+            <span class="reddit-stat-item">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              ${post.numComments.toLocaleString()} comments
+            </span>
+          </div>
+
+          <a href="${post.url}" target="_blank" rel="noopener noreferrer" class="btn-open-reddit">
+            <span>Open Discussion</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"/></svg>
+          </a>
+        </div>
+      `;
+
+      list.appendChild(card);
+    });
+
+    list.style.display = 'grid';
+    if (countEl) countEl.textContent = `${posts.length} discussions found`;
+  }
+
+  function escapeHTML(str) {
+    if (!str) return '';
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
 }
