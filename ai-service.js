@@ -1,6 +1,7 @@
 // AI Service: Real Google Gemini integration + realistic instant fallback
 const https = require('https');
 const { UNIVERSAL_AI_SYSTEM_INSTRUCTION } = require('./ai-system-prompt');
+const offlineAIEngine = require('./offline-ai-engine');
 
 // Knowledge base of popular open-source projects for zero-latency queries
 // Project knowledge guide templates (no mock counters or metrics)
@@ -135,7 +136,7 @@ class AIService {
   }
 
   // AI Chatbot Answer
-  async answerChat({ message, repoContext, redditDiscussions = [] }) {
+  async answerChat({ message, repoContext, history = [], redditDiscussions = [] }) {
     let redditContextText = "";
     let citations = [];
 
@@ -152,60 +153,41 @@ class AIService {
       }));
     }
 
+    // 1. If Gemini is configured, generate with multi-turn conversation awareness
     if (this.isConfigured()) {
-      const prompt = "Active Context / Target Repository: " + (repoContext ? repoContext.fullName : "General Purpose") + "\nUser Question / Task: " + message + redditContextText;
+      let prompt = "Target Repository: " + (repoContext ? repoContext.fullName : "None (General Purpose)") + "\n\n";
+      if (Array.isArray(history) && history.length > 0) {
+        prompt += "Recent Conversation History:\n" + history.slice(-6).map(h => {
+          const sender = h.role === 'user' ? 'User' : 'Assistant';
+          return `${sender}: ${h.content}`;
+        }).join("\n") + "\n\n";
+      }
+      prompt += "Current User Question / Code / Task: " + message + redditContextText;
+      
       const reply = await this.generateText(prompt, UNIVERSAL_AI_SYSTEM_INSTRUCTION);
       if (reply) {
         return {
           reply,
           mode: "Live Universal AI (Gemini)",
-          provider: "Google Gemini 1.5 Pro",
+          provider: "Google Gemini",
           citations: citations.length > 0 ? citations : undefined
         };
       }
     }
 
-    // Smart General-Purpose & Developer Intelligence Engine
-    const q = (message || "").toLowerCase().trim();
-    const repoName = repoContext?.name || "the project";
+    // 2. Offline AI Engine: Context-aware, technical tutor with multi-turn memory
+    const offlineReply = offlineAIEngine.answer(message, repoContext, history);
+    let finalReply = offlineReply;
 
-    let answer = "";
-
-    // 1. Conversational greetings
-    if (/^(hi|hello|hey|greetings|good morning|good afternoon|good evening|how are you|who are you)[!?,.]*$/i.test(q)) {
-      answer = "Hello! 👋 I am your **Open Source Chatbot AI Assistant**.\n\nI can help you with anything from general knowledge, science, mathematics, and writing, to programming across languages (Python, JavaScript, C++, Go, Rust), debugging, Git branching, repository analysis, and open-source contributions.\n\nWhat would you like to explore or build today?";
-    }
-    // 2. Step-by-Step Open-Source Contribution Guide
-    else if (q.includes("how to contribute") || q.includes("how can i contribute") || q.includes("start contributing")) {
-      answer = "### 🚀 Step-by-Step Guide to Contributing to **" + repoName + "**\n\n### Step 1: Fork and Clone the Repository\nFork the project on GitHub, then clone your fork locally:\n```bash\ngit clone https://github.com/YOUR_USERNAME/" + repoName + ".git\ncd " + repoName + "\n```\n\n### Step 2: Configure Upstream Remote\nKeep your local fork in sync with maintainer updates:\n```bash\ngit remote add upstream https://github.com/" + (repoContext?.fullName || "facebook/react") + ".git\ngit fetch upstream\n```\n\n### Step 3: Install Dependencies & Run Tests\nVerify that existing automated tests pass on your machine:\n```bash\nnpm install\nnpm test\n```\n\n### Step 4: Pick an Issue and Create a Branch\nBrowse issues labeled `good first issue` or `documentation`. Politely comment asking to be assigned, then create a branch:\n```bash\ngit checkout -b fix/issue-description\n```\n\n### Step 5: Implement, Test & Verify\nMake your focused change, write or update tests, and verify:\n```bash\ngit status\nnpm test\n```\n\n### Step 6: Commit and Open Pull Request\nUse semantic commit messages and push to your fork:\n```bash\ngit commit -m \"fix(core): clarify parameter validation\"\ngit push -u origin fix/issue-description\n```\nOpen the PR on GitHub and link the issue using `Fixes #<issue-number>`.";
-    }
-    // 3. Beginner Issues Guidance
-    else if (q.includes("issue") && (q.includes("beginner") || q.includes("starter") || q.includes("choose") || q.includes("first"))) {
-      answer = "### 🐛 How to Choose Beginner-Friendly Issues\n\n### 1. High-Yield Starter Categories\n* **Documentation Fixes:** Clarifying ambiguous README sections, fixing typos, and improving setup steps. Maintainers review these quickly and they carry zero regression risk.\n* **Unit Test Coverage:** Adding edge-case tests (e.g. `null`, `undefined`, negative numbers) in test folders.\n* **Dependency / Type Annotations:** Adding missing TypeScript types or docstrings.\n\n### 2. GitHub Search Filters\nSearch GitHub issues directly with these queries:\n```text\nis:issue is:open label:\"good first issue\" no:assignee\nis:issue is:open label:\"documentation\"\n```\n\n### 3. Maintainer Etiquette\nAlways comment on the issue first: *\"Hi maintainers, I would love to work on this issue. Could you please assign it to me?\"* to prevent duplicate work.";
-    }
-    // 4. Git & Pull Request Instructions
-    else if (q.includes("pull request") || q.includes("pr") || q.includes("create a pr")) {
-      answer = "### 📋 Step-by-Step Guide: Creating a Pull Request\n\n### Step 1: Ensure Your Branch Is Rebased on Main\n```bash\ngit checkout main\ngit pull upstream main\ngit checkout fix/your-branch\ngit rebase main\n```\n\n### Step 2: Review Your Git Diff\nInspect modified files to ensure no debug statements or unintended changes are included:\n```bash\ngit diff HEAD~1\n```\n\n### Step 3: Push to Your Fork\n```bash\ngit push -u origin fix/your-branch\n```\n\n### Step 4: Open the PR on GitHub\n* Give the PR a clear title: `fix(parser): handle empty input string gracefully`\n* Fill out the repository's PR template.\n* Link the target issue using `Closes #123` or `Fixes #123`.\n\n### Step 5: Verification\nWatch GitHub Actions CI checks. If any linter or test fails, fix it promptly on your branch and push.";
-    }
-    // 5. General Programming / Coding / Language Query
-    else if (q.includes("python") || q.includes("javascript") || q.includes("typescript") || q.includes("c++") || q.includes("java") || q.includes("function") || q.includes("class") || q.includes("api") || q.includes("code")) {
-      answer = "### 💻 Technical Architecture & Code Guidance\n\nWhen implementing solutions for **" + message + "**:\n\n### Step 1: Core Concept & Architecture\nDesign your solution with modular, testable components. Separate business logic from data access and I/O.\n\n### Step 2: Implementation Standard\n* Write clean, idiomatic code adhering to project linting standards.\n* Always validate input bounds, handles edge cases, and avoid unhandled exceptions.\n* Never expose credentials or store plain-text passwords.\n\n### Step 3: Testing & Verification\nAlways write accompanying automated unit tests to verify your implementation before deploying or opening a PR.";
-    }
-    // 6. Comprehensive General Purpose Fallback
-    else {
-      answer = "### 💡 Insight & Guidance on \"" + message + "\"\n\n### Overview\nRegarding **" + message + "**:\n\n1. **Core Understanding:** Break down the problem into individual requirements and constraints.\n2. **Best Practices:** Use structured, modular approaches and verify each step with practical examples.\n3. **Practical Application:** If working within **" + repoName + "**, explore the **Repository Analyzer**, test your implementation in **Code Review**, or check **Reddit Community** for developer discussions.\n\nFeel free to ask for detailed step-by-step instructions, code snippets, mathematical derivations, or debugging help!";
-    }
-
-    // Append Reddit Community Citations if retrieved
     if (citations.length > 0) {
-      answer += "\n\n---\n\n### 💬 Relevant Community Discussions\n";
+      finalReply += "\n\n---\n\n### 💬 Relevant Community Discussions\n";
       citations.forEach(c => {
-        answer += "* **" + c.subreddit + "** — [" + c.title + "](" + c.url + ") *(Score: " + c.score + ")*\n";
+        finalReply += "* **" + c.subreddit + "** — [" + c.title + "](" + c.url + ") *(Score: " + c.score + ")*\n";
       });
     }
 
     return {
-      reply: answer,
+      reply: finalReply,
       mode: "Universal AI Assistant",
       provider: "Open Source Chatbot Engine",
       citations: citations.length > 0 ? citations : undefined
