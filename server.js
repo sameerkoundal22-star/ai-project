@@ -5,6 +5,7 @@ const path = require('path');
 const aiService = require('./ai-service');
 const githubService = require('./github-service');
 const authService = require('./auth-service');
+const redditService = require('./reddit-service');
 
 const PORT = process.env.PORT || 3000;
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -103,6 +104,26 @@ const server = http.createServer(async (req, res) => {
 
   // --- EXISTING AI & GITHUB ENDPOINTS ---
 
+  // Reddit Official Discussions Search API
+  if (pathname === '/api/reddit/search' && method === 'POST') {
+    try {
+      const body = await parseBody(req);
+      const { query, subreddit, limit } = body;
+      const result = await redditService.searchDiscussions({ query, subreddit, limit });
+      return sendJSON(res, 200, result);
+    } catch (err) {
+      return sendJSON(res, 500, { success: false, error: err.message, posts: [] });
+    }
+  }
+
+  // Reddit Configuration Status API
+  if (pathname === '/api/reddit/status' && method === 'GET') {
+    return sendJSON(res, 200, {
+      configured: redditService.isConfigured(),
+      subreddits: redditService.defaultSubreddits
+    });
+  }
+
   // Universal Instant Search Endpoint
   if (pathname === '/api/search' && method === 'POST') {
     try {
@@ -195,6 +216,7 @@ const server = http.createServer(async (req, res) => {
     if (method === 'GET') {
       return sendJSON(res, 200, {
         geminiConfigured: aiService.isConfigured(),
+        redditConfigured: redditService.isConfigured(),
         githubConfigured: githubService.isConfigured(),
         supabaseUrl: process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || '',
         supabaseAnonKey: process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || ''

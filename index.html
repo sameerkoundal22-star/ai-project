@@ -204,6 +204,10 @@
           <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
           GitHub Insights
         </button>
+        <button class="nav-item" data-tab="reddit">
+          <svg class="nav-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M17 13c-.7 1.2-2.3 2-5 2s-4.3-.8-5-2"></path><circle cx="9" cy="10" r="1.5" fill="currentColor"></circle><circle cx="15" cy="10" r="1.5" fill="currentColor"></circle></svg>
+          Reddit Community
+        </button>
 
       </nav>
 
@@ -384,6 +388,13 @@
             <p class="feature-desc">Ecosystem analytics, contribution health metrics, PR velocity, and maintainer activity audits.</p>
             <div class="feature-action">Explore Insights &rarr;</div>
           </div>
+
+          <div class="feature-card" data-navigate="reddit">
+            <div class="feature-icon-wrapper">💬</div>
+            <h3 class="feature-title">Reddit Community</h3>
+            <p class="feature-desc">Live developer discussions across r/opensource, r/github, r/learnprogramming, and tech subreddits.</p>
+            <div class="feature-action">Browse Reddit Discussions &rarr;</div>
+          </div>
         </div>
       </section>
 
@@ -432,6 +443,23 @@
                 <button class="quick-chip" data-prompt="Explain this issue to me.">Explain this issue to me.</button>
                 <button class="quick-chip" data-prompt="How do I create a pull request?">How do I create a pull request?</button>
                 <button class="quick-chip" data-prompt="Which issue should a beginner choose?">Which issue should a beginner choose?</button>
+              </div>
+
+              <!-- Chatbot Sources Selector -->
+              <div class="chat-sources-bar">
+                <span class="sources-label">Sources:</span>
+                <label class="source-checkbox-item">
+                  <input type="checkbox" id="srcKnowledge" checked>
+                  <span>Open Source Knowledge</span>
+                </label>
+                <label class="source-checkbox-item">
+                  <input type="checkbox" id="srcGithub" checked>
+                  <span>GitHub Repository</span>
+                </label>
+                <label class="source-checkbox-item">
+                  <input type="checkbox" id="srcReddit" checked>
+                  <span>Reddit Community</span>
+                </label>
               </div>
 
               <form id="chatForm" class="chat-form-row">
@@ -809,6 +837,108 @@
               <li>Zero Critical CVE vulnerabilities in default branch.</li>
             </ul>
           </div>
+        </div>
+      </section>
+
+    
+      <!-- TAB 8: REDDIT COMMUNITY DATA INTEGRATION -->
+      <section id="tab-reddit" class="tab-pane">
+        <div class="panel-header">
+          <div class="panel-title-group">
+            <h2>Reddit Developer Community</h2>
+            <p>Search and reference discussions across open-source and developer subreddits via official Reddit API.</p>
+          </div>
+          <div class="panel-header-badges">
+            <span class="badge badge-info" id="redditStatusBadge">Official API</span>
+          </div>
+        </div>
+
+        <!-- Search Bar Section -->
+        <div class="card" style="margin-bottom: 24px;">
+          <h3 class="card-title">Search Reddit</h3>
+          <p style="font-size: 0.86rem; color: var(--text-secondary); margin-bottom: 16px;">
+            Query developer discussions on GitHub workflows, contribution tips, language best practices, or library questions.
+          </p>
+
+          <form id="redditSearchForm" class="reddit-search-form">
+            <div class="reddit-search-input-wrap">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              <input type="text" id="redditQueryInput" class="form-control" placeholder="Search for developer / open-source topic (e.g. contribute to python, pull requests, react state)..." required>
+            </div>
+
+            <div class="reddit-sub-select-wrap">
+              <select id="redditSubredditSelect" class="form-control">
+                <option value="">All Dev Subreddits</option>
+                <option value="opensource">r/opensource</option>
+                <option value="github">r/github</option>
+                <option value="git">r/git</option>
+                <option value="learnprogramming">r/learnprogramming</option>
+                <option value="Python">r/Python</option>
+                <option value="javascript">r/javascript</option>
+                <option value="reactjs">r/reactjs</option>
+                <option value="cpp">r/cpp</option>
+                <option value="MachineLearning">r/MachineLearning</option>
+              </select>
+            </div>
+
+            <button type="submit" class="btn btn-primary" id="btnSearchReddit">
+              <span>Search Reddit</span>
+            </button>
+          </form>
+
+          <!-- Quick Topic Pills -->
+          <div class="suggested-chips-scroll" style="margin-top: 14px; padding-bottom: 0;">
+            <button class="quick-chip reddit-chip" data-q="How can I contribute to an open-source project?">Contribute to Open Source</button>
+            <button class="quick-chip reddit-chip" data-q="How do I create my first pull request?">First Pull Request</button>
+            <button class="quick-chip reddit-chip" data-q="Best practices for Git branch workflow">Git Workflows</button>
+            <button class="quick-chip reddit-chip" data-q="How to get issues assigned on GitHub">Getting Issues Assigned</button>
+            <button class="quick-chip reddit-chip" data-q="Python open source projects for beginners">Python Beginners</button>
+          </div>
+        </div>
+
+        <!-- Setup Alert Banner (When Reddit API credentials not set) -->
+        <div id="redditSetupAlert" class="card" style="display: none; background: rgba(245, 158, 11, 0.08); border-color: rgba(245, 158, 11, 0.35); margin-bottom: 24px;">
+          <div style="display: flex; gap: 14px; align-items: flex-start;">
+            <div style="font-size: 1.5rem;">⚙️</div>
+            <div>
+              <h4 style="color: #F59E0B; font-size: 0.96rem; font-weight: 700; margin-bottom: 4px;">Reddit Official API Setup Required</h4>
+              <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 10px;">
+                To retrieve live posts, configure the server environment variables with your Reddit Developer application credentials:
+              </p>
+              <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid var(--border-color); border-radius: 6px; padding: 10px 14px; font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; color: #F8FAFC; margin-bottom: 8px;">
+                REDDIT_CLIENT_ID=your_reddit_app_id<br>
+                REDDIT_CLIENT_SECRET=your_reddit_app_secret<br>
+                REDDIT_USER_AGENT=web:opensource-ai:v1.0.0 (by /u/developer)
+              </div>
+              <p style="font-size: 0.8rem; color: var(--text-secondary);">Create a script application in <a href="https://www.reddit.com/prefs/apps" target="_blank" rel="noopener" style="color: var(--accent); text-decoration: underline;">Reddit App Preferences</a> to obtain your client ID and secret.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Results Section -->
+        <div class="card">
+          <div class="card-header-row">
+            <h3 class="card-title">Relevant Discussions</h3>
+            <span class="results-count-text" id="redditResultsCount">Ready to search</span>
+          </div>
+
+          <div id="redditLoadingState" class="reddit-loading-state" style="display: none;">
+            <div class="spinner"></div>
+            <span>Searching Reddit...</span>
+          </div>
+
+          <div id="redditEmptyState" class="empty-state-box" style="text-align: center; padding: 40px 20px;">
+            <div style="font-size: 2.2rem; margin-bottom: 10px;">💬</div>
+            <h4 style="font-size: 1rem; color: var(--text-main); margin-bottom: 6px;">No discussions loaded</h4>
+            <p style="font-size: 0.85rem; color: var(--text-secondary); max-width: 420px; margin: 0 auto;">
+              Enter a developer or open-source query above to search public Reddit discussions.
+            </p>
+          </div>
+
+          <div id="redditDiscussionsList" class="reddit-discussions-grid" style="display: none;"></div>
         </div>
       </section>
 
