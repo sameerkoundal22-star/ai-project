@@ -840,17 +840,13 @@ function setupUniversalSearch() {
 }
 
 // =========================================
-// REPOSITORY ANALYZER
+// REPOSITORY ANALYZER & LIVE GITHUB INTELLIGENCE
 // =========================================
 function setupRepoAnalysis() {
-  const form = document.getElementById('repoSearchForm');
-  const input = document.getElementById('repoUrlInput');
   const btn = document.getElementById('btnAnalyzeMain');
+  const input = document.getElementById('repoUrlInput');
   const btnClear = document.getElementById('btnClearRepoInput');
-
-  if (input) {
-    input.value = ''; // Ensure field is strictly empty on load
-  }
+  const btnCopyCommands = document.getElementById('btnCopyQuickCommands');
 
   if (btnClear && input) {
     btnClear.addEventListener('click', () => {
@@ -859,59 +855,99 @@ function setupRepoAnalysis() {
     });
   }
 
-  if (form) {
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const val = input ? input.value.trim() : '';
-      if (val) analyzeRepository(val);
+  if (btnCopyCommands) {
+    btnCopyCommands.addEventListener('click', () => {
+      const commands = document.getElementById('repoQuickStart')?.textContent || '';
+      navigator.clipboard.writeText(commands).then(() => {
+        showToast('Setup commands copied to clipboard!');
+      });
     });
   }
 
-  if (btn) {
+  if (btn && input) {
     btn.addEventListener('click', () => {
-      const val = input ? input.value.trim() : '';
-      if (val) analyzeRepository(val);
+      analyzeRepository(input.value.trim());
+    });
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        analyzeRepository(input.value.trim());
+      }
     });
   }
+}
+
+// Clean and normalize repository input into { owner, repo }
+function normalizeRepoInput(raw) {
+  if (!raw || typeof raw !== 'string') return null;
+  let clean = raw.trim();
+
+  // Strip protocol and domain
+  clean = clean.replace(/^(https?:\/\/)?(www\.)?github\.com\/?/i, '');
+  clean = clean.replace(/\.git$/i, '');
+  clean = clean.replace(/^\/+/, '').replace(/\/+$/, '');
+
+  const ALIASES = {
+    'react': 'facebook/react',
+    'vscode': 'microsoft/vscode',
+    'tensorflow': 'tensorflow/tensorflow',
+    'vue': 'vuejs/core',
+    'nextjs': 'vercel/next.js',
+    'next.js': 'vercel/next.js',
+    'express': 'expressjs/express'
+  };
+
+  if (ALIASES[clean.toLowerCase()]) {
+    clean = ALIASES[clean.toLowerCase()];
+  }
+
+  const parts = clean.split('/').map(p => p.trim()).filter(Boolean);
+  if (parts.length >= 2) {
+    const owner = parts[0];
+    const repo = parts[1];
+    if (/^[a-zA-Z0-9_\-\.]+$/.test(owner) && /^[a-zA-Z0-9_\-\.]+$/.test(repo)) {
+      return { owner, repo, slug: `${owner}/${repo}` };
+    }
+  }
+
+  return null;
 }
 
 async function analyzeRepository(repoSlugOrUrl) {
   const btn = document.getElementById('btnAnalyzeMain');
   const btnText = btn ? btn.querySelector('.btn-text') : null;
   const btnSpinner = btn ? btn.querySelector('.btn-spinner') : null;
+  const progressBox = document.getElementById('repoAnalysisProgress');
+  const progressStepText = document.getElementById('repoProgressStepText');
+  const progressSubText = document.getElementById('repoProgressSubText');
 
-  if (btnText) btnText.textContent = 'Analyzing...';
-  if (btnSpinner) btnSpinner.style.display = 'inline-block';
-  if (btn) btn.disabled = true;
+  const parsed = normalizeRepoInput(repoSlugOrUrl);
 
-  // Clean raw pasted input
-  let cleanInput = (repoSlugOrUrl || '').trim();
-  cleanInput = cleanInput.replace(/^https?:\/\/github\.com\//i, '');
-  cleanInput = cleanInput.replace(/\.git$/i, '');
-  cleanInput = cleanInput.replace(/^\/+/, '').replace(/\/+$/, '');
-
-  const ALIASES = {
-    'react': 'facebook/react',
-    'express': 'expressjs/express',
-    'vue': 'vuejs/core',
-    'vue 3': 'vuejs/core',
-    'vuejs': 'vuejs/core',
-    'next': 'vercel/next.js',
-    'next.js': 'vercel/next.js',
-    'nextjs': 'vercel/next.js'
-  };
-  const targetSlug = ALIASES[cleanInput.toLowerCase()] || cleanInput;
-
-  if (!targetSlug) {
-    showToast('Please enter a GitHub repository URL (e.g. https://github.com/owner/repository).');
-    if (btnText) btnText.textContent = 'Analyze Repository';
-    if (btnSpinner) btnSpinner.style.display = 'none';
-    if (btn) btn.disabled = false;
+  if (!parsed) {
+    showToast('Please enter a valid GitHub repository (e.g. facebook/react or https://github.com/microsoft/vscode).');
     return;
   }
 
-  // First try backend API
+  const targetSlug = parsed.slug;
+  const { owner, repo } = parsed;
+
+  // Set loading state & clear previous state
+  if (btn) btn.disabled = true;
+  if (btnText) btnText.textContent = 'Analyzing...';
+  if (btnSpinner) btnSpinner.style.display = 'inline-block';
+  if (progressBox) progressBox.style.display = 'block';
+
+  function updateProgress(step, detail) {
+    if (progressStepText) progressStepText.textContent = step;
+    if (progressSubText) progressSubText.textContent = detail;
+  }
+
+  updateProgress('Validating repository...', `Target: ${targetSlug}`);
+
+  // 1. First attempt: Dedicated Server GitHub Service Pipeline
   try {
+    updateProgress('Fetching GitHub metadata...', 'Connecting to GitHub REST API...');
     const res = await fetch('/api/repo/analyze', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -920,103 +956,267 @@ async function analyzeRepository(repoSlugOrUrl) {
 
     const data = await res.json();
     if (res.ok && data.success && data.data) {
+      updateProgress('Generating repository intelligence...', 'Synthesizing architecture and roadmap...');
       currentRepo = data.data;
       updateRepoUI(currentRepo, data.mode);
       if (window.ClientMetrics) {
         window.ClientMetrics.recordRepoAnalysis(currentRepo.fullName || currentRepo.name);
       }
-      showToast(`Loaded ${currentRepo.fullName || currentRepo.name}`);
+      showToast(`Successfully analyzed ${currentRepo.fullName || currentRepo.name}`);
       switchTab('repo');
       return;
-    } else {
-      showToast(data.error || 'Failed to retrieve repository data.');
+    } else if (data && data.error) {
+      // If server returned specific 404 or rate-limit message, display it cleanly
+      showToast(data.error);
+      if (progressBox) progressBox.style.display = 'none';
+      return;
     }
   } catch (err) {
-    // Client-side direct GitHub fetch if running statically on GitHub Pages
-    try {
-      const parts = targetSlug.split('/');
-      if (parts.length >= 2) {
-        const owner = parts[0];
-        const repo = parts[1];
-        const ghToken = localStorage.getItem('opensource_github_token') || '';
-        const headers = { 'Accept': 'application/vnd.github.v3+json' };
-        if (ghToken) headers['Authorization'] = `Bearer ${ghToken}`;
+    // Server route unavailable (e.g. static hosting on GitHub Pages). Proceed to Client-side direct pipeline.
+  }
 
-        const ghRes = await fetch(`https://api.github.com/repos/${owner}/${repo}`, { headers });
-        if (ghRes.ok) {
-          const d = await ghRes.json();
-          currentRepo = {
-            name: d.name,
-            owner: d.owner?.login || owner,
-            fullName: d.full_name || `${owner}/${repo}`,
-            description: d.description || 'Public GitHub repository.',
-            stars: d.stargazers_count || 0,
-            forks: d.forks_count || 0,
-            openIssues: d.open_issues_count || 0,
-            mainLanguage: d.language || 'Code',
-            topics: d.topics || [d.name],
-            activity: `Pushed ${d.pushed_at ? new Date(d.pushed_at).toLocaleDateString() : 'N/A'}`,
-            license: d.license?.name || 'Open Source',
-            html_url: d.html_url,
-            readme: `# ${d.name}\n\n${d.description || ''}`,
-            contributing: `# Contributing to ${d.name}\n\nStandard GitHub pull request workflow applies.`,
-            issues: []
-          };
-          updateRepoUI(currentRepo, 'Live GitHub Client API');
-          if (window.ClientMetrics) {
-            window.ClientMetrics.recordRepoAnalysis(currentRepo.fullName || currentRepo.name);
-          }
-          showToast(`Loaded ${currentRepo.fullName}`);
-          switchTab('repo');
-          return;
-        } else if (ghRes.status === 403) {
-          showToast('GitHub API rate limit reached. Add your GitHub Token in Settings to continue.');
-          return;
-        } else if (ghRes.status === 404) {
-          showToast(`Repository "${targetSlug}" not found on GitHub.`);
-          return;
+  // 2. Client-side Direct GitHub Pipeline (GitHub Pages Static Fallback)
+  try {
+    updateProgress('Connecting to GitHub API...', 'Fetching repository metadata directly from GitHub...');
+    const ghToken = localStorage.getItem('opensource_github_token') || '';
+    const headers = { 'Accept': 'application/vnd.github.v3+json' };
+    if (ghToken) headers['Authorization'] = `Bearer ${ghToken}`;
+
+    const repoRes = await fetch(`https://api.github.com/repos/${owner}/${repo}`, { headers });
+    
+    if (repoRes.status === 404) {
+      showToast(`Repository "${targetSlug}" was not found on GitHub (404).`);
+      return;
+    } else if (repoRes.status === 403) {
+      showToast('GitHub API rate limit reached. Add your GitHub Token in Settings to continue.');
+      return;
+    } else if (!repoRes.ok) {
+      showToast(`GitHub API error: ${repoRes.statusText || repoRes.status}`);
+      return;
+    }
+
+    const d = await repoRes.json();
+    updateProgress('Reading repository structure & issues...', 'Inspecting default branch and open tickets...');
+
+    const defaultBranch = d.default_branch || 'main';
+
+    // Parallel fetch contents, issues, pulls, and readme
+    const [treeRes, issuesRes, pullsRes, readmeRes] = await Promise.all([
+      fetch(`https://api.github.com/repos/${owner}/${repo}/contents?ref=${defaultBranch}`, { headers }).catch(() => null),
+      fetch(`https://api.github.com/repos/${owner}/${repo}/issues?state=open&per_page=15&sort=updated`, { headers }).catch(() => null),
+      fetch(`https://api.github.com/repos/${owner}/${repo}/pulls?state=open&per_page=10&sort=updated`, { headers }).catch(() => null),
+      fetch(`https://api.github.com/repos/${owner}/${repo}/readme`, { headers }).catch(() => null)
+    ]);
+
+    const structureTree = [];
+    if (treeRes && treeRes.ok) {
+      const treeData = await treeRes.json();
+      if (Array.isArray(treeData)) {
+        treeData.forEach(item => {
+          structureTree.push({
+            name: item.name,
+            path: item.path,
+            type: item.type === 'dir' ? 'dir' : 'file',
+            size: item.size || 0,
+            html_url: item.html_url
+          });
+        });
+        structureTree.sort((a, b) => (a.type !== b.type ? (a.type === 'dir' ? -1 : 1) : a.name.localeCompare(b.name)));
+      }
+    }
+
+    const issues = [];
+    if (issuesRes && issuesRes.ok) {
+      const issData = await issuesRes.json();
+      if (Array.isArray(issData)) {
+        issData.filter(i => !i.pull_request).forEach(i => {
+          const labels = (i.labels || []).map(l => (typeof l === 'object' ? l.name : l));
+          const isBeginner = labels.some(l => /good first|beginner|easy|help wanted|starter/i.test(l));
+          issues.push({
+            id: i.id,
+            number: i.number,
+            title: i.title,
+            labels,
+            author: i.user?.login || 'contributor',
+            authorAvatar: i.user?.avatar_url || null,
+            comments: i.comments || 0,
+            html_url: i.html_url,
+            created_at: i.created_at,
+            updated_at: i.updated_at,
+            state: i.state,
+            difficulty: isBeginner ? 'Beginner' : 'Intermediate'
+          });
+        });
+      }
+    }
+
+    const pullRequests = [];
+    if (pullsRes && pullsRes.ok) {
+      const prData = await pullsRes.json();
+      if (Array.isArray(prData)) {
+        prData.forEach(p => {
+          pullRequests.push({
+            number: p.number,
+            title: p.title,
+            author: p.user?.login || 'contributor',
+            authorAvatar: p.user?.avatar_url || null,
+            created_at: p.created_at,
+            updated_at: p.updated_at,
+            html_url: p.html_url,
+            state: p.state
+          });
+        });
+      }
+    }
+
+    let readmeText = '';
+    if (readmeRes && readmeRes.ok) {
+      const rmData = await readmeRes.json();
+      if (rmData && rmData.content) {
+        try {
+          readmeText = decodeURIComponent(escape(atob(rmData.content)));
+        } catch (e) {
+          readmeText = atob(rmData.content);
         }
       }
-    } catch (clientErr) {
-      showToast('Network error: Unable to contact GitHub API.');
     }
+
+    const detectedTech = new Set();
+    if (d.language) detectedTech.add(d.language);
+    structureTree.forEach(i => {
+      const n = i.name.toLowerCase();
+      if (n.includes('docker')) detectedTech.add('Docker');
+      if (n === 'cargo.toml') detectedTech.add('Rust / Cargo');
+      if (n === 'go.mod') detectedTech.add('Go Modules');
+      if (n === 'package.json') detectedTech.add('Node.js / npm');
+      if (n === 'requirements.txt') detectedTech.add('Python');
+      if (n === 'pom.xml') detectedTech.add('Java Maven');
+    });
+
+    const dirs = structureTree.filter(s => s.type === 'dir').map(d => d.name);
+
+    currentRepo = {
+      name: d.name,
+      owner: d.owner?.login || owner,
+      fullName: d.full_name || targetSlug,
+      description: d.description || 'No description provided.',
+      homepage: d.homepage,
+      html_url: d.html_url,
+      visibility: d.visibility || 'public',
+      defaultBranch: defaultBranch,
+      created_at: d.created_at,
+      pushed_at: d.pushed_at,
+      stars: d.stargazers_count || 0,
+      forks: d.forks_count || 0,
+      watchers: d.watchers_count || 0,
+      openIssues: d.open_issues_count || 0,
+      mainLanguage: d.language || 'Code',
+      languages: { [d.language || 'Code']: 100 },
+      license: d.license?.name || 'Open Source',
+      topics: d.topics || [],
+      structureTree,
+      techStack: Array.from(detectedTech),
+      docAvailability: {
+        readme: Boolean(readmeText),
+        contributing: structureTree.some(s => /contributing/i.test(s.name)),
+        codeOfConduct: structureTree.some(s => /code_of_conduct/i.test(s.name)),
+        security: structureTree.some(s => /security/i.test(s.name))
+      },
+      quickCommands: [
+        `git clone ${d.html_url}.git`,
+        `cd ${d.name}`
+      ],
+      readme: readmeText || `# ${d.name}\n\n${d.description || 'No README file available.'}`,
+      issues,
+      pullRequests,
+      aiAnalysis: {
+        projectPurpose: d.description || `${d.name} is a software project maintained by ${owner}.`,
+        architectureOverview: `Built primarily in ${d.language || 'Code'}${dirs.length > 0 ? ' with core modules in ' + dirs.slice(0, 5).map(dir => '`' + dir + '`').join(', ') : ''}.`,
+        beginnerFriendlyAreas: ['Documentation & Typo Corrections', 'Unit tests & edge-case test additions'],
+        intermediateAreas: ['Component feature requests', 'API route implementations'],
+        advancedAreas: ['Core engine optimizations & concurrency'],
+        contributorRoadmap: [
+          '1. Fork repository and clone locally',
+          '2. Run automated test suites to establish baseline',
+          '3. Pick a good-first-issue or documentation task',
+          '4. Open pull request with structured reproduction steps'
+        ]
+      },
+      aiSource: 'Client-Side Analysis Engine'
+    };
+
+    updateRepoUI(currentRepo, 'Live GitHub Client API');
+    if (window.ClientMetrics) {
+      window.ClientMetrics.recordRepoAnalysis(currentRepo.fullName || currentRepo.name);
+    }
+    showToast(`Successfully loaded ${currentRepo.fullName}`);
+    switchTab('repo');
+  } catch (clientErr) {
+    showToast('Network error: Unable to contact GitHub API. Please check your internet connection.');
   } finally {
+    if (btn) btn.disabled = false;
     if (btnText) btnText.textContent = 'Analyze Repository';
     if (btnSpinner) btnSpinner.style.display = 'none';
-    if (btn) btn.disabled = false;
+    if (progressBox) progressBox.style.display = 'none';
   }
 }
 
 function updateRepoUI(repo, mode) {
+  if (!repo) return;
+
   const fullName = repo.fullName || `${repo.owner}/${repo.name}`;
+
+  // Global badges across sidebar and other views
   const badgeName = document.getElementById('badgeRepoName');
   const badgeMode = document.getElementById('badgeRepoMode');
   const chatRepoName = document.getElementById('chatRepoName');
   const guideRepoName = document.getElementById('guideRepoName');
 
   if (badgeName) badgeName.textContent = fullName;
-  if (badgeMode) badgeMode.textContent = mode || 'Instant Engine';
+  if (badgeMode) badgeMode.textContent = mode || 'Live GitHub Data';
   if (chatRepoName) chatRepoName.textContent = fullName;
   if (guideRepoName) guideRepoName.textContent = fullName;
 
   // Header Details
   const titleEl = document.getElementById('repoDetailTitle');
   const descEl = document.getElementById('repoDetailDesc');
+  const visibilityBadge = document.getElementById('repoVisibilityBadge');
+  const metaLinks = document.getElementById('repoMetaLinks');
+  const githubLink = document.getElementById('repoGithubLink');
+  const lastPushed = document.getElementById('repoLastPushed');
+  const defaultBranch = document.getElementById('repoDefaultBranch');
+
+  if (titleEl) titleEl.textContent = fullName;
+  if (descEl) descEl.textContent = repo.description || 'No description provided.';
+  if (visibilityBadge) {
+    visibilityBadge.textContent = repo.visibility || 'public';
+    visibilityBadge.style.display = 'inline-block';
+  }
+  if (metaLinks) metaLinks.style.display = 'flex';
+  if (githubLink) githubLink.href = repo.html_url || `https://github.com/${fullName}`;
+  if (lastPushed) {
+    lastPushed.textContent = repo.pushed_at ? `Pushed: ${new Date(repo.pushed_at).toLocaleDateString()}` : '';
+  }
+  if (defaultBranch) {
+    defaultBranch.textContent = repo.defaultBranch ? `Default Branch: ${repo.defaultBranch}` : '';
+  }
+
+  // Real KPI Metrics
   const starsEl = document.getElementById('repoStars');
   const forksEl = document.getElementById('repoForks');
+  const watchersEl = document.getElementById('repoWatchers');
   const issuesEl = document.getElementById('repoIssues');
   const langEl = document.getElementById('repoLang');
   const licEl = document.getElementById('repoLicense');
 
-  if (titleEl) titleEl.textContent = fullName;
-  if (descEl) descEl.textContent = repo.description;
   if (starsEl) starsEl.textContent = (repo.stars || 0).toLocaleString();
   if (forksEl) forksEl.textContent = (repo.forks || 0).toLocaleString();
+  if (watchersEl) watchersEl.textContent = (repo.watchers || 0).toLocaleString();
   if (issuesEl) issuesEl.textContent = (repo.openIssues || 0).toLocaleString();
-  if (langEl) langEl.textContent = repo.mainLanguage || 'TypeScript';
-  if (licEl) licEl.textContent = repo.license || 'Open Source';
-  
-  // Real Insights Tab Synchronization
+  if (langEl) langEl.textContent = repo.mainLanguage || 'Code';
+  if (licEl) licEl.textContent = repo.license || 'Not specified';
+
+  // Insights synchronization
   const insStars = document.getElementById('insightsStars');
   const insForks = document.getElementById('insightsForks');
   const insIssues = document.getElementById('insightsOpenIssues');
@@ -1029,13 +1229,183 @@ function updateRepoUI(repo, mode) {
   if (insLang) insLang.textContent = repo.mainLanguage || 'Code';
   if (insLic) insLic.textContent = repo.license || 'Open Source';
 
-  // Readme
-  const readmeBox = document.getElementById('repoReadmeContainer');
-  if (readmeBox) {
-    readmeBox.innerHTML = window.marked ? window.marked.parse(repo.readme || '') : (repo.readme || '');
+  // 1. AI Architecture & Problem Solved
+  const aiBody = document.getElementById('repoAiAnalysisBody');
+  const ai = repo.aiAnalysis || {};
+  if (aiBody) {
+    aiBody.innerHTML = `
+      <div style="margin-bottom: 12px;">
+        <strong style="color: var(--text-main); font-size: 0.92rem;">Project Purpose & Problem Solved:</strong>
+        <p style="margin: 4px 0 0 0; color: var(--text-secondary); line-height: 1.5;">${escapeHTML(ai.projectPurpose || repo.description || '')}</p>
+      </div>
+      <div>
+        <strong style="color: var(--text-main); font-size: 0.92rem;">Architecture & Core Components:</strong>
+        <p style="margin: 4px 0 0 0; color: var(--text-secondary); line-height: 1.5;">${escapeHTML(ai.architectureOverview || '')}</p>
+      </div>
+    `;
   }
 
-  // Populate Triage issue select
+  // Documentation Health Badges
+  const doc = repo.docAvailability || {};
+  function styleDocBadge(id, label, exists) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = `${label}: ${exists ? '✓ Available' : '✕ Missing'}`;
+    el.className = `badge-tag ${exists ? 'low' : 'critical'}`;
+  }
+  styleDocBadge('badgeDocReadme', 'README.md', doc.readme);
+  styleDocBadge('badgeDocContributing', 'CONTRIBUTING.md', doc.contributing);
+  styleDocBadge('badgeDocCodeOfConduct', 'CODE_OF_CONDUCT.md', doc.codeOfConduct);
+  styleDocBadge('badgeDocSecurity', 'SECURITY.md', doc.security);
+
+  // 2. Real Repository Structure Tree
+  const treeContainer = document.getElementById('repoStructureTree');
+  const countEl = document.getElementById('repoStructureCount');
+  const tree = repo.structureTree || [];
+  if (countEl) countEl.textContent = `${tree.length} top-level item${tree.length === 1 ? '' : 's'}`;
+
+  if (treeContainer) {
+    if (tree.length === 0) {
+      treeContainer.innerHTML = '<span style="color: var(--text-muted);">No tree structure returned.</span>';
+    } else {
+      treeContainer.innerHTML = tree.map(item => {
+        const icon = item.type === 'dir' ? '📁' : '📄';
+        return `<div style="display: flex; justify-content: space-between; padding: 2px 0;">
+          <span>${icon} ${escapeHTML(item.name)}</span>
+          ${item.type === 'file' && item.size ? `<span style="color: var(--text-muted); font-size: 0.72rem;">${(item.size / 1024).toFixed(1)} KB</span>` : ''}
+        </div>`;
+      }).join('');
+    }
+  }
+
+  // 3. Detected Technology Stack & Language Breakdown
+  const techBadges = document.getElementById('repoTechStackBadges');
+  const langBreakdown = document.getElementById('repoLanguageBreakdown');
+  const stack = repo.techStack || [];
+
+  if (techBadges) {
+    if (stack.length === 0) {
+      techBadges.innerHTML = '<span style="font-size: 0.82rem; color: var(--text-muted);">No specific technologies detected.</span>';
+    } else {
+      techBadges.innerHTML = stack.map(t => `<span class="badge-tag" style="background: rgba(99, 102, 241, 0.15); border-color: rgba(99, 102, 241, 0.4); color: #818CF8; font-size: 0.78rem;">${escapeHTML(t)}</span>`).join('');
+    }
+  }
+
+  if (langBreakdown) {
+    const langs = repo.languages || {};
+    const total = Object.values(langs).reduce((acc, v) => acc + (typeof v === 'number' ? v : 0), 0);
+    if (total > 0) {
+      langBreakdown.innerHTML = Object.entries(langs).map(([lang, bytes]) => {
+        const pct = ((bytes / total) * 100).toFixed(1);
+        return `<span style="display: inline-block; margin-right: 12px;">${escapeHTML(lang)}: <strong>${pct}%</strong></span>`;
+      }).join('');
+    } else {
+      langBreakdown.textContent = repo.mainLanguage || 'Code';
+    }
+  }
+
+  // 4. Quick Start Commands
+  const quickStart = document.getElementById('repoQuickStart');
+  if (quickStart) {
+    const cmds = repo.quickCommands || [`git clone ${repo.html_url || 'https://github.com/' + fullName}.git`, `cd ${repo.name}`];
+    quickStart.textContent = cmds.join('\n');
+  }
+
+  // 5. Contributor Difficulty Spectrum (AI Assessment)
+  const begEl = document.getElementById('repoBeginnerAreas');
+  const intEl = document.getElementById('repoIntermediateAreas');
+  const advEl = document.getElementById('repoAdvancedAreas');
+
+  if (begEl) {
+    const areas = ai.beginnerFriendlyAreas || ['Documentation corrections & unit test assertions'];
+    begEl.innerHTML = areas.map(a => `• ${escapeHTML(a)}`).join('<br>');
+  }
+  if (intEl) {
+    const areas = ai.intermediateAreas || ['Component features & API route handlers'];
+    intEl.innerHTML = areas.map(a => `• ${escapeHTML(a)}`).join('<br>');
+  }
+  if (advEl) {
+    const areas = ai.advancedAreas || ['Core reconciler, compiler internals & concurrency boundaries'];
+    advEl.innerHTML = areas.map(a => `• ${escapeHTML(a)}`).join('<br>');
+  }
+
+  // 6. Contributor Roadmap Steps
+  const roadmapEl = document.getElementById('repoRoadmapSteps');
+  if (roadmapEl) {
+    const steps = ai.contributorRoadmap || [
+      'Read README.md and CONTRIBUTING.md',
+      'Verify build and test passes locally',
+      'Pick a beginner issue',
+      'Submit PR with clear reproduction verification'
+    ];
+    roadmapEl.innerHTML = steps.map(s => `<li style="margin-bottom: 4px;">${escapeHTML(s.replace(/^\d+\.\s*/, ''))}</li>`).join('');
+  }
+
+  // 7. Real Open Issues List
+  const issuesList = document.getElementById('repoRealIssuesList');
+  const issuesCountText = document.getElementById('repoIssuesCountText');
+  const issues = repo.issues || [];
+  if (issuesCountText) issuesCountText.textContent = `${issues.length} retrieved`;
+
+  if (issuesList) {
+    if (issues.length === 0) {
+      issuesList.innerHTML = '<div style="padding: 12px; text-align: center; color: var(--text-muted); font-size: 0.84rem;">No open issues retrieved.</div>';
+    } else {
+      issuesList.innerHTML = issues.map(iss => `
+        <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-color); border-radius: 6px; padding: 10px 12px; font-size: 0.82rem;">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+            <a href="${iss.html_url}" target="_blank" rel="noopener noreferrer" style="color: var(--text-main); font-weight: 700; text-decoration: none; line-height: 1.35;">
+              #${iss.number}: ${escapeHTML(iss.title)}
+            </a>
+            <span class="badge-tag ${iss.difficulty === 'Beginner' ? 'low' : 'medium'}" style="font-size: 0.68rem; padding: 1px 6px;">
+              ${iss.difficulty}
+            </span>
+          </div>
+          <div style="display: flex; gap: 10px; margin-top: 6px; font-size: 0.74rem; color: var(--text-muted);">
+            <span>by @${escapeHTML(iss.author)}</span>
+            <span>💬 ${iss.comments} comments</span>
+            <span>Created: ${new Date(iss.created_at).toLocaleDateString()}</span>
+          </div>
+        </div>
+      `).join('');
+    }
+  }
+
+  // 8. Real Pull Requests List
+  const pullsList = document.getElementById('repoRealPullsList');
+  const pullsCountText = document.getElementById('repoPullsCountText');
+  const pulls = repo.pullRequests || [];
+  if (pullsCountText) pullsCountText.textContent = `${pulls.length} retrieved`;
+
+  if (pullsList) {
+    if (pulls.length === 0) {
+      pullsList.innerHTML = '<div style="padding: 12px; text-align: center; color: var(--text-muted); font-size: 0.84rem;">No active pull requests retrieved.</div>';
+    } else {
+      pullsList.innerHTML = pulls.map(pr => `
+        <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-color); border-radius: 6px; padding: 10px 12px; font-size: 0.82rem;">
+          <a href="${pr.html_url}" target="_blank" rel="noopener noreferrer" style="color: var(--text-main); font-weight: 700; text-decoration: none; line-height: 1.35;">
+            #${pr.number}: ${escapeHTML(pr.title)}
+          </a>
+          <div style="display: flex; gap: 10px; margin-top: 6px; font-size: 0.74rem; color: var(--text-muted);">
+            <span>by @${escapeHTML(pr.author)}</span>
+            <span>Updated: ${new Date(pr.updated_at).toLocaleDateString()}</span>
+          </div>
+        </div>
+      `).join('');
+    }
+  }
+
+  // 9. Documentation (README Rendered Markdown)
+  const readmeBox = document.getElementById('repoReadmeContainer');
+  const rawReadmeLink = document.getElementById('repoRawReadmeLink');
+  if (rawReadmeLink) {
+    rawReadmeLink.href = `${repo.html_url || 'https://github.com/' + fullName}/blob/${repo.defaultBranch || 'main'}/README.md`;
+  }
+  if (readmeBox) {
+    readmeBox.innerHTML = window.marked ? window.marked.parse(repo.readme || '') : `<pre style="white-space: pre-wrap;">${escapeHTML(repo.readme || '')}</pre>`;
+  }
+
+  // 10. Populate Issue Triage select dropdown
   const triageSelect = document.getElementById('triageIssueSelect');
   if (triageSelect) {
     triageSelect.innerHTML = '<option value="">-- Choose an issue from active repository --</option>';
@@ -1049,7 +1419,6 @@ function updateRepoUI(repo, mode) {
     }
   }
 }
-
 // =========================================
 // AI ASSISTANT CHAT
 // =========================================

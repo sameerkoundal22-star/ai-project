@@ -474,67 +474,223 @@
 
       <!-- TAB 3: REPOSITORY ANALYZER -->
       <section id="tab-repo" class="tab-pane">
-        <div class="panel-header">
-          <div class="panel-title-group">
-            <h2 id="repoDetailTitle">No repository analyzed yet</h2>
-            <p id="repoDetailDesc">Enter a public GitHub repository above to retrieve live metadata.</p>
-          </div>
-        </div>
-
-        <div class="analytics-grid" style="margin-top: 0; margin-bottom: 24px;">
-          <div class="stat-card">
-            <div class="stat-num" id="repoStars">0</div>
-            <div class="stat-label">Stars</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-num" id="repoForks">0</div>
-            <div class="stat-label">Forks</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-num" id="repoIssues">0</div>
-            <div class="stat-label">Open Issues</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-num" id="repoLang">None</div>
-            <div class="stat-label">Primary Language</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-num" id="repoLicense">None</div>
-            <div class="stat-label">License</div>
-          </div>
-        </div>
-
-        <div class="grid-2-col">
-          <div class="card">
-            <h3 class="card-title">Project Overview & Architecture</h3>
-            <div id="repoReadmeContainer" style="max-height: 380px; overflow-y: auto; line-height: 1.6; font-size: 0.9rem;">
-              <!-- README Rendered Here -->
+          <div class="panel-header">
+            <div class="panel-title-group">
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                <h2 id="repoDetailTitle" style="margin: 0;">No repository analyzed yet</h2>
+                <span class="badge-tag low" id="repoVisibilityBadge" style="display: none;">public</span>
+              </div>
+              <p id="repoDetailDesc">Enter a public GitHub repository above to retrieve live metadata and architectural intelligence.</p>
+              <div id="repoMetaLinks" style="display: flex; gap: 14px; margin-top: 6px; font-size: 0.8rem; display: none;">
+                <a id="repoGithubLink" href="#" target="_blank" rel="noopener noreferrer" style="color: var(--accent); text-decoration: underline; display: flex; align-items: center; gap: 4px;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"></path></svg>
+                  View on GitHub
+                </a>
+                <span id="repoLastPushed" style="color: var(--text-muted);"></span>
+                <span id="repoDefaultBranch" style="color: var(--text-muted);"></span>
+              </div>
+            </div>
+            <div id="repoAnalysisProgress" style="display: none; background: rgba(99, 102, 241, 0.12); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 8px; padding: 10px 14px; font-size: 0.82rem; min-width: 260px;">
+              <div style="display: flex; align-items: center; gap: 8px; font-weight: 700; color: #818CF8; margin-bottom: 4px;">
+                <div class="spinner" style="width: 14px; height: 14px;"></div>
+                <span id="repoProgressStepText">Analyzing repository...</span>
+              </div>
+              <div id="repoProgressSubText" style="font-size: 0.75rem; color: var(--text-secondary);">Connecting to GitHub REST API...</div>
             </div>
           </div>
 
-          <div class="card">
-            <h3 class="card-title">Technology Stack & Setup</h3>
-            <div class="form-group">
-              <label>Tech Stack</label>
-              <div id="repoTechStack" class="commit-box" style="padding: 10px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--text-tertiary);">Awaiting repository analysis...</div>
+          <!-- Metadata KPI Cards (Real Data Only) -->
+          <div class="analytics-grid" style="margin-top: 0; margin-bottom: 24px;">
+            <div class="stat-card">
+              <div class="stat-num" id="repoStars">0</div>
+              <div class="stat-label">Stars</div>
             </div>
-            <div class="form-group">
-              <label>Quick Start Commands</label>
-              <pre class="snippet" id="repoQuickStart" style="color: var(--text-tertiary);">git clone https://github.com/owner/repository.git&#10;cd repository</pre>
+            <div class="stat-card">
+              <div class="stat-num" id="repoForks">0</div>
+              <div class="stat-label">Forks</div>
             </div>
-            <div class="form-group">
-              <label>Curated Good First Issues</label>
-              <div id="repoCuratedIssues">
-                <div style="padding: 10px 12px; background: var(--bg-secondary); border: 1px dashed var(--border-color); border-radius: 6px; font-size: 0.85rem; color: var(--text-tertiary); text-align: center;">
-                  No issues loaded yet. Analyze a repository above to retrieve live GitHub issues.
+            <div class="stat-card">
+              <div class="stat-num" id="repoWatchers">0</div>
+              <div class="stat-label">Watchers</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-num" id="repoIssues">0</div>
+              <div class="stat-label">Open Issues</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-num" id="repoLang">None</div>
+              <div class="stat-label">Primary Language</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-num" id="repoLicense">None</div>
+              <div class="stat-label">License</div>
+            </div>
+          </div>
+
+          <!-- Grid Row 1: AI Architectural Breakdown & Real Repository Structure -->
+          <div class="grid-2-col" style="margin-bottom: 24px;">
+            <!-- Left: AI Architecture & Problem Solved (Clearly Labeled AI Analysis) -->
+            <div class="card">
+              <div class="card-header-flex" style="border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 12px;">
+                <div>
+                  <h3 class="card-title" style="margin: 0;">AI Architecture & Scope Analysis</h3>
+                  <div style="font-size: 0.72rem; color: #818CF8; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; margin-top: 2px;">
+                    ✦ AI Analysis (Derived from real repo data)
+                  </div>
+                </div>
+              </div>
+              <div id="repoAiAnalysisBody" style="font-size: 0.88rem; line-height: 1.6; color: var(--text-main);">
+                <div style="color: var(--text-muted); padding: 20px 0;">Submit a repository to generate structured architectural intelligence.</div>
+              </div>
+
+              <!-- Documentation Health Badges -->
+              <div style="margin-top: 18px; border-top: 1px solid var(--border-color); padding-top: 12px;">
+                <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-secondary); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em;">
+                  Repository Documentation Health
+                </div>
+                <div id="repoDocHealthBadges" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                  <span class="badge-tag" id="badgeDocReadme">README.md: —</span>
+                  <span class="badge-tag" id="badgeDocContributing">CONTRIBUTING.md: —</span>
+                  <span class="badge-tag" id="badgeDocCodeOfConduct">CODE_OF_CONDUCT.md: —</span>
+                  <span class="badge-tag" id="badgeDocSecurity">SECURITY.md: —</span>
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-      </section>
 
-      <!-- TAB 4: ISSUE TRIAGE -->
+            <!-- Right: Real Repository Structure Tree (From GitHub API) -->
+            <div class="card">
+              <div class="card-header-flex" style="border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 12px;">
+                <div>
+                  <h3 class="card-title" style="margin: 0;">Repository Structure</h3>
+                  <div style="font-size: 0.72rem; color: #10B981; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; margin-top: 2px;">
+                    ✓ Retrieved from GitHub
+                  </div>
+                </div>
+                <span id="repoStructureCount" style="font-size: 0.76rem; color: var(--text-muted);">0 items</span>
+              </div>
+              <div id="repoStructureTree" class="commit-box" style="max-height: 320px; overflow-y: auto; padding: 10px 14px; font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; line-height: 1.5; background: rgba(15, 23, 42, 0.75);">
+                <span style="color: var(--text-muted);">Awaiting repository analysis...</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Grid Row 2: Technology Stack & Quick Setup Commands -->
+          <div class="grid-2-col" style="margin-bottom: 24px;">
+            <div class="card">
+              <div class="card-header-flex" style="border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 12px;">
+                <h3 class="card-title" style="margin: 0;">Detected Technology Stack</h3>
+                <span style="font-size: 0.72rem; color: #10B981; font-weight: 700; text-transform: uppercase;">✓ Real File Signatures</span>
+              </div>
+              <div id="repoTechStackBadges" style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px;">
+                <span style="font-size: 0.82rem; color: var(--text-muted);">No technologies analyzed yet.</span>
+              </div>
+              <div style="border-top: 1px solid var(--border-color); padding-top: 10px; font-size: 0.78rem; color: var(--text-secondary);">
+                <strong>Language Distribution:</strong>
+                <div id="repoLanguageBreakdown" style="margin-top: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.78rem;">—</div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header-flex" style="border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 12px;">
+                <h3 class="card-title" style="margin: 0;">Local Development & Setup</h3>
+                <button class="btn btn-secondary btn-sm" id="btnCopyQuickCommands" style="padding: 2px 8px; font-size: 0.72rem;">Copy Commands</button>
+              </div>
+              <pre class="snippet font-mono" id="repoQuickStart" style="font-size: 0.82rem; color: var(--text-main); max-height: 140px; overflow-y: auto;">git clone https://github.com/owner/repository.git&#10;cd repository</pre>
+            </div>
+          </div>
+
+          <!-- Grid Row 3: Contributor Difficulty Roadmap & Beginner Areas (AI Analysis) -->
+          <div class="grid-2-col" style="margin-bottom: 24px;">
+            <!-- Beginner / Intermediate / Advanced Areas -->
+            <div class="card">
+              <div class="card-header-flex" style="border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 12px;">
+                <div>
+                  <h3 class="card-title" style="margin: 0;">Contribution Difficulty Spectrum</h3>
+                  <div style="font-size: 0.72rem; color: #818CF8; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; margin-top: 2px;">
+                    ✦ AI-Generated Assessment
+                  </div>
+                </div>
+              </div>
+              <div id="repoDifficultySpectrum" style="display: flex; flex-direction: column; gap: 12px; font-size: 0.84rem;">
+                <div>
+                  <span class="badge-tag low" style="display: inline-block; margin-bottom: 4px;">🟢 Beginner-Friendly Areas</span>
+                  <div id="repoBeginnerAreas" style="color: var(--text-secondary); padding-left: 4px; line-height: 1.5;">Awaiting repository analysis...</div>
+                </div>
+                <div>
+                  <span class="badge-tag medium" style="display: inline-block; margin-bottom: 4px;">🟡 Intermediate Areas</span>
+                  <div id="repoIntermediateAreas" style="color: var(--text-secondary); padding-left: 4px; line-height: 1.5;">Awaiting repository analysis...</div>
+                </div>
+                <div>
+                  <span class="badge-tag critical" style="display: inline-block; margin-bottom: 4px;">🔴 Advanced / Core Internals</span>
+                  <div id="repoAdvancedAreas" style="color: var(--text-secondary); padding-left: 4px; line-height: 1.5;">Awaiting repository analysis...</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Contributor Onboarding Path -->
+            <div class="card">
+              <div class="card-header-flex" style="border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 12px;">
+                <div>
+                  <h3 class="card-title" style="margin: 0;">Contributor Onboarding Path</h3>
+                  <div style="font-size: 0.72rem; color: #818CF8; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; margin-top: 2px;">
+                    ✦ Recommended Learning Order
+                  </div>
+                </div>
+              </div>
+              <ol id="repoRoadmapSteps" style="margin: 0 0 0 18px; padding: 0; font-size: 0.84rem; line-height: 1.6; color: var(--text-secondary);">
+                <li>Analyze a repository above to construct an actionable contributor roadmap.</li>
+              </ol>
+            </div>
+          </div>
+
+          <!-- Grid Row 4: Real Issues & Pull Requests -->
+          <div class="grid-2-col" style="margin-bottom: 24px;">
+            <!-- Real Open Issues from GitHub -->
+            <div class="card">
+              <div class="card-header-flex" style="border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 12px;">
+                <div>
+                  <h3 class="card-title" style="margin: 0;">Real Open Issues</h3>
+                  <div style="font-size: 0.72rem; color: #10B981; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; margin-top: 2px;">
+                    ✓ Retrieved from GitHub
+                  </div>
+                </div>
+                <span id="repoIssuesCountText" style="font-size: 0.76rem; color: var(--text-muted);">0 issues</span>
+              </div>
+              <div id="repoRealIssuesList" style="display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow-y: auto;">
+                <div style="padding: 14px; text-align: center; color: var(--text-muted); font-size: 0.84rem;">No issues loaded.</div>
+              </div>
+            </div>
+
+            <!-- Real Pull Requests from GitHub -->
+            <div class="card">
+              <div class="card-header-flex" style="border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 12px;">
+                <div>
+                  <h3 class="card-title" style="margin: 0;">Real Active Pull Requests</h3>
+                  <div style="font-size: 0.72rem; color: #10B981; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; margin-top: 2px;">
+                    ✓ Retrieved from GitHub
+                  </div>
+                </div>
+                <span id="repoPullsCountText" style="font-size: 0.76rem; color: var(--text-muted);">0 PRs</span>
+              </div>
+              <div id="repoRealPullsList" style="display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow-y: auto;">
+                <div style="padding: 14px; text-align: center; color: var(--text-muted); font-size: 0.84rem;">No pull requests loaded.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Documentation Full Content Accordion/Tab -->
+          <div class="card">
+            <div class="card-header-flex" style="border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 14px;">
+              <h3 class="card-title" style="margin: 0;">Repository Documentation (README.md)</h3>
+              <a id="repoRawReadmeLink" href="#" target="_blank" rel="noopener noreferrer" style="font-size: 0.78rem; color: var(--accent); text-decoration: underline;">View Raw Markdown</a>
+            </div>
+            <div id="repoReadmeContainer" style="max-height: 440px; overflow-y: auto; line-height: 1.6; font-size: 0.88rem; padding-right: 8px;">
+              <div style="color: var(--text-muted); padding: 20px 0;">Enter a repository URL above to load documentation.</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- TAB 4: ISSUE TRIAGE -->
       <section id="tab-triage" class="tab-pane">
         <div class="panel-header">
           <div class="panel-title-group">
