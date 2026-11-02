@@ -190,17 +190,21 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // Config API
+  // Config & Public Environment API
   if (pathname === '/api/config') {
     if (method === 'GET') {
       return sendJSON(res, 200, {
         geminiConfigured: aiService.isConfigured(),
-        githubConfigured: githubService.isConfigured()
+        githubConfigured: githubService.isConfigured(),
+        supabaseUrl: process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL || '',
+        supabaseAnonKey: process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || ''
       });
     } else if (method === 'POST') {
       const body = await parseBody(req);
       if (body.geminiKey !== undefined) aiService.setApiKey(body.geminiKey);
       if (body.githubToken !== undefined) githubService.setToken(body.githubToken);
+      if (body.supabaseUrl !== undefined) process.env.SUPABASE_URL = body.supabaseUrl;
+      if (body.supabaseAnonKey !== undefined) process.env.SUPABASE_ANON_KEY = body.supabaseAnonKey;
       return sendJSON(res, 200, {
         success: true,
         message: 'Settings updated'
