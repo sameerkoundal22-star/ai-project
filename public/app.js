@@ -1,3 +1,21 @@
+// Safe API request helper: returns null on non-200 or static 404/405 without uncaught errors
+async function safeApiFetch(url, options = {}) {
+  try {
+    const res = await fetch(url, options);
+    if (!res.ok) {
+      return { ok: false, status: res.status, data: null };
+    }
+    const contentType = res.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      const data = await res.json();
+      return { ok: true, status: res.status, data };
+    }
+    return { ok: true, status: res.status, data: null };
+  } catch (err) {
+    return { ok: false, status: 0, error: err };
+  }
+}
+
 // OpenSource AI - Complete Single-Page Application Client State, Handlers & Authentication System
 let currentUser = null;
 let currentRepo = null;

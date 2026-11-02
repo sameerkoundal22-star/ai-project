@@ -760,31 +760,31 @@
               <button class="btn btn-secondary btn-sm" id="btnCopyTriage">Copy Report</button>
             </div>
 
-            <div id="triageDetails">
-              <div style="display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap;">
-                <span class="badge-tag critical" id="triagePriority">HIGH PRIORITY</span>
+            <div id="triageEmptyState" style="padding: 30px 16px; text-align: center; color: var(--text-muted);">
+              <div style="font-size: 1.8rem; margin-bottom: 8px; opacity: 0.7;">📋</div>
+              <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--text-main); margin-bottom: 4px;">No issue analyzed yet</h4>
+              <p style="font-size: 0.84rem; max-width: 380px; margin: 0 auto; line-height: 1.5;">
+                Select an issue from the active repository or paste an issue title and description on the left, then click <strong>Analyze & Triage Issue</strong>.
+              </p>
+            </div>
+
+            <div id="triageDetails" style="display: none;">
+              <div style="display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap;" id="triageBadgesRow">
+                <span class="badge-tag medium" id="triagePriority">MEDIUM PRIORITY</span>
                 <span class="badge-tag medium" id="triageType">Bug</span>
-                <span class="badge-tag low" id="triageBeginner">Beginner Friendly: Yes</span>
+                <span class="badge-tag low" id="triageBeginner">Beginner Friendly: TBD</span>
               </div>
               <div class="form-group">
                 <label>Executive Summary</label>
-                <p id="triageSummary" style="font-size: 0.88rem; line-height: 1.5; color: var(--text-secondary);">
-                  Select an issue or paste title and description on the left to generate an automated triage analysis.
-                </p>
+                <p id="triageSummary" style="font-size: 0.88rem; line-height: 1.5; color: var(--text-secondary);"></p>
               </div>
               <div class="form-group">
                 <label>Affected Component & Possible Cause</label>
-                <div id="triageAffectedArea" style="font-size: 0.85rem; padding: 10px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-main);">
-                  Awaiting input analysis...
-                </div>
+                <div id="triageAffectedArea" style="font-size: 0.85rem; padding: 10px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-main);"></div>
               </div>
               <div class="form-group">
                 <label>Recommended Reproduction & Next Steps</label>
-                <ul id="triageSteps" style="padding-left: 20px; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.6;">
-                  <li>Isolate minimal reproduction script in test harness.</li>
-                  <li>Verify if regression occurred in recent releases.</li>
-                  <li>Draft fix PR with associated unit tests.</li>
-                </ul>
+                <ul id="triageSteps" style="padding-left: 20px; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.6;"></ul>
               </div>
             </div>
           </div>
@@ -1186,26 +1186,28 @@
           <h3>API & Provider Settings</h3>
           <button class="modal-close" id="closeConfigBtn">&times;</button>
         </div>
-        <div class="modal-body">
-          <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 14px;">
-            <strong>OpenSource AI</strong> runs instantly with realistic datasets and zero-latency local intelligence without any keys.
-            Optionally provide your own keys to unlock live GitHub REST quotas and Google Gemini LLM generation.
-          </p>
+        <form id="settingsConfigForm" novalidate onsubmit="return false;">
+          <div class="modal-body">
+            <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: 14px;">
+              <strong>OpenSource AI</strong> runs instantly with realistic datasets and zero-latency local intelligence without any keys.
+              Optionally provide your own keys to unlock live GitHub REST quotas and Google Gemini LLM generation.
+            </p>
 
-          <div class="form-group">
-            <label>Google Gemini API Key (Optional)</label>
-            <input type="password" id="inputGeminiKey" class="form-control" placeholder="AIzaSy..." autocomplete="off" data-lpignore="true" data-form-type="other">
-          </div>
+            <div class="form-group">
+              <label for="inputGeminiKey">Google Gemini API Key (Optional)</label>
+              <input type="password" id="inputGeminiKey" name="geminiApiKey" class="form-control" placeholder="AIzaSy..." autocomplete="off" data-lpignore="true" data-form-type="other">
+            </div>
 
-          <div class="form-group">
-            <label>GitHub Personal Access Token (Optional)</label>
-            <input type="password" id="inputGithubToken" class="form-control" placeholder="ghp_..." autocomplete="off" data-lpignore="true" data-form-type="other">
+            <div class="form-group">
+              <label for="inputGithubToken">GitHub Personal Access Token (Optional)</label>
+              <input type="password" id="inputGithubToken" name="githubPersonalAccessToken" class="form-control" placeholder="ghp_..." autocomplete="off" data-lpignore="true" data-form-type="other">
+            </div>
           </div>
-        </div>
-        <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px;">
-          <button class="btn btn-secondary" id="btnCancelConfig">Cancel</button>
-          <button class="btn btn-primary" id="btnSaveConfig">Save Settings</button>
-        </div>
+          <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px;">
+            <button class="btn btn-secondary" id="btnCancelConfig" type="button">Cancel</button>
+            <button class="btn btn-primary" id="btnSaveConfig" type="button">Save Settings</button>
+          </div>
+        </form>
       </div>
     </div>
 
