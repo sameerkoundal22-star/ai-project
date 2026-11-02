@@ -1,5 +1,6 @@
 // AI Service: Real Google Gemini integration + realistic instant fallback
 const https = require('https');
+const { UNIVERSAL_AI_SYSTEM_INSTRUCTION } = require('./ai-system-prompt');
 
 // Knowledge base of popular open-source projects for zero-latency queries
 const POPULAR_PROJECTS = {
@@ -240,35 +241,50 @@ class AIService {
     }
 
     if (this.isConfigured()) {
-      const systemInstruction = "You are OpenSource AI, an experienced senior open-source mentor. Answer the developer query clearly using the provided repository context and any Reddit community discussions. Summarize community insights accurately and always cite the discussion links. Never fabricate posts or stats.";
-      const prompt = "Active Repo: " + (repoContext ? repoContext.fullName : "General") + "\nUser Query: " + message + redditContextText;
-      const reply = await this.generateText(prompt, systemInstruction);
+      const prompt = "Active Context / Target Repository: " + (repoContext ? repoContext.fullName : "General Purpose") + "\nUser Question / Task: " + message + redditContextText;
+      const reply = await this.generateText(prompt, UNIVERSAL_AI_SYSTEM_INSTRUCTION);
       if (reply) {
         return {
           reply,
-          mode: "Live AI (Gemini)",
-          provider: "Google Gemini 1.5",
+          mode: "Live Universal AI (Gemini)",
+          provider: "Google Gemini 1.5 Pro",
           citations: citations.length > 0 ? citations : undefined
         };
       }
     }
 
-    // Smart Instant Mentor Answer
-    const q = message.toLowerCase();
+    // Smart General-Purpose & Developer Intelligence Engine
+    const q = (message || "").toLowerCase().trim();
     const repoName = repoContext?.name || "the project";
 
     let answer = "";
-    if (q.includes("how to contribute") || q.includes("start")) {
-      answer = "### 🚀 Step-by-Step Guide to Contribute to **" + repoName + "**\n\n1. **Fork & Clone:** Fork on GitHub, then run `git clone https://github.com/YOUR_USER/" + repoName + ".git`\n2. **Install & Test:** Run dependencies install and execute tests to confirm local setup.\n3. **Pick an Issue:** Check open issues tagged `good first issue` or `documentation`.\n4. **Create Branch:** `git checkout -b feature/issue-fix`\n5. **Open PR:** Submit with clear descriptions and test steps.";
-    } else if (q.includes("issue") || q.includes("beginner")) {
-      answer = "### 🐛 Recommended Starter Issues for **" + repoName + "**\n\n* **Docs:** Fixing typos or expanding installation guides is the lowest risk way to get your first merged PR.\n* **Unit Tests:** Adding test cases for uncovered branches builds deep familiarity with the codebase.\n* **Good First Issue:** Check the issues tab in the Repository module for curated starter tickets.";
-    } else if (q.includes("install") || q.includes("setup")) {
-      answer = "### 🛠️ Setup Instructions for **" + repoName + "**\n\n```bash\ngit clone https://github.com/" + (repoContext?.fullName || "facebook/react") + ".git\ncd " + repoName + "\nnpm install\nnpm test\n```\n\nMake sure your Node.js version is up to date before running the test suite.";
-    } else {
-      answer = "### 💡 Mentor Advice on \"" + message + "\"\n\nFor **" + repoName + "**, maintainers value clarity, adherence to style guidelines, and respectful communication.\n\n* Check the **Repository** tab to view the live README and contributing docs.\n* Check the **Issue Triage** tab to analyze bug reports.\n* Check **Code Review** to inspect your code quality before opening a PR!";
+
+    // 1. Conversational greetings
+    if (/^(hi|hello|hey|greetings|good morning|good afternoon|good evening|how are you|who are you)[!?,.]*$/i.test(q)) {
+      answer = "Hello! 👋 I am your **Open Source Chatbot AI Assistant**.\n\nI can help you with anything from general knowledge, science, mathematics, and writing, to programming across languages (Python, JavaScript, C++, Go, Rust), debugging, Git branching, repository analysis, and open-source contributions.\n\nWhat would you like to explore or build today?";
+    }
+    // 2. Step-by-Step Open-Source Contribution Guide
+    else if (q.includes("how to contribute") || q.includes("how can i contribute") || q.includes("start contributing")) {
+      answer = "### 🚀 Step-by-Step Guide to Contributing to **" + repoName + "**\n\n### Step 1: Fork and Clone the Repository\nFork the project on GitHub, then clone your fork locally:\n```bash\ngit clone https://github.com/YOUR_USERNAME/" + repoName + ".git\ncd " + repoName + "\n```\n\n### Step 2: Configure Upstream Remote\nKeep your local fork in sync with maintainer updates:\n```bash\ngit remote add upstream https://github.com/" + (repoContext?.fullName || "facebook/react") + ".git\ngit fetch upstream\n```\n\n### Step 3: Install Dependencies & Run Tests\nVerify that existing automated tests pass on your machine:\n```bash\nnpm install\nnpm test\n```\n\n### Step 4: Pick an Issue and Create a Branch\nBrowse issues labeled `good first issue` or `documentation`. Politely comment asking to be assigned, then create a branch:\n```bash\ngit checkout -b fix/issue-description\n```\n\n### Step 5: Implement, Test & Verify\nMake your focused change, write or update tests, and verify:\n```bash\ngit status\nnpm test\n```\n\n### Step 6: Commit and Open Pull Request\nUse semantic commit messages and push to your fork:\n```bash\ngit commit -m \"fix(core): clarify parameter validation\"\ngit push -u origin fix/issue-description\n```\nOpen the PR on GitHub and link the issue using `Fixes #<issue-number>`.";
+    }
+    // 3. Beginner Issues Guidance
+    else if (q.includes("issue") && (q.includes("beginner") || q.includes("starter") || q.includes("choose") || q.includes("first"))) {
+      answer = "### 🐛 How to Choose Beginner-Friendly Issues\n\n### 1. High-Yield Starter Categories\n* **Documentation Fixes:** Clarifying ambiguous README sections, fixing typos, and improving setup steps. Maintainers review these quickly and they carry zero regression risk.\n* **Unit Test Coverage:** Adding edge-case tests (e.g. `null`, `undefined`, negative numbers) in test folders.\n* **Dependency / Type Annotations:** Adding missing TypeScript types or docstrings.\n\n### 2. GitHub Search Filters\nSearch GitHub issues directly with these queries:\n```text\nis:issue is:open label:\"good first issue\" no:assignee\nis:issue is:open label:\"documentation\"\n```\n\n### 3. Maintainer Etiquette\nAlways comment on the issue first: *\"Hi maintainers, I would love to work on this issue. Could you please assign it to me?\"* to prevent duplicate work.";
+    }
+    // 4. Git & Pull Request Instructions
+    else if (q.includes("pull request") || q.includes("pr") || q.includes("create a pr")) {
+      answer = "### 📋 Step-by-Step Guide: Creating a Pull Request\n\n### Step 1: Ensure Your Branch Is Rebased on Main\n```bash\ngit checkout main\ngit pull upstream main\ngit checkout fix/your-branch\ngit rebase main\n```\n\n### Step 2: Review Your Git Diff\nInspect modified files to ensure no debug statements or unintended changes are included:\n```bash\ngit diff HEAD~1\n```\n\n### Step 3: Push to Your Fork\n```bash\ngit push -u origin fix/your-branch\n```\n\n### Step 4: Open the PR on GitHub\n* Give the PR a clear title: `fix(parser): handle empty input string gracefully`\n* Fill out the repository's PR template.\n* Link the target issue using `Closes #123` or `Fixes #123`.\n\n### Step 5: Verification\nWatch GitHub Actions CI checks. If any linter or test fails, fix it promptly on your branch and push.";
+    }
+    // 5. General Programming / Coding / Language Query
+    else if (q.includes("python") || q.includes("javascript") || q.includes("typescript") || q.includes("c++") || q.includes("java") || q.includes("function") || q.includes("class") || q.includes("api") || q.includes("code")) {
+      answer = "### 💻 Technical Architecture & Code Guidance\n\nWhen implementing solutions for **" + message + "**:\n\n### Step 1: Core Concept & Architecture\nDesign your solution with modular, testable components. Separate business logic from data access and I/O.\n\n### Step 2: Implementation Standard\n* Write clean, idiomatic code adhering to project linting standards.\n* Always validate input bounds, handles edge cases, and avoid unhandled exceptions.\n* Never expose credentials or store plain-text passwords.\n\n### Step 3: Testing & Verification\nAlways write accompanying automated unit tests to verify your implementation before deploying or opening a PR.";
+    }
+    // 6. Comprehensive General Purpose Fallback
+    else {
+      answer = "### 💡 Insight & Guidance on \"" + message + "\"\n\n### Overview\nRegarding **" + message + "**:\n\n1. **Core Understanding:** Break down the problem into individual requirements and constraints.\n2. **Best Practices:** Use structured, modular approaches and verify each step with practical examples.\n3. **Practical Application:** If working within **" + repoName + "**, explore the **Repository Analyzer**, test your implementation in **Code Review**, or check **Reddit Community** for developer discussions.\n\nFeel free to ask for detailed step-by-step instructions, code snippets, mathematical derivations, or debugging help!";
     }
 
-    // Append synthesized Reddit community insights if present
+    // Append Reddit Community Citations if retrieved
     if (citations.length > 0) {
       answer += "\n\n---\n\n### 💬 Relevant Community Discussions\n";
       citations.forEach(c => {
@@ -278,8 +294,8 @@ class AIService {
 
     return {
       reply: answer,
-      mode: "Instant Mentor Mode",
-      provider: "OpenSource AI Engine",
+      mode: "Universal AI Assistant",
+      provider: "Open Source Chatbot Engine",
       citations: citations.length > 0 ? citations : undefined
     };
   }
