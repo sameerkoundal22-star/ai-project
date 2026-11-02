@@ -1057,11 +1057,18 @@ function setupChat() {
   const form = document.getElementById('chatForm');
   const input = document.getElementById('chatInput');
   const messages = document.getElementById('chatMessages');
+  const chips = document.querySelectorAll('.prompt-chip, .quick-chip');
   const btnClear = document.getElementById('btnClearChat');
+  const srcKnowledge = document.getElementById('srcKnowledge');
+  const srcGithub = document.getElementById('srcGithub');
+  const srcReddit = document.getElementById('srcReddit');
+
+  // Maintain in-memory multi-turn conversation history
+  const conversationHistory = [];
 
   if (!form || !input) return;
 
-  document.querySelectorAll('.quick-chip').forEach(chip => {
+  chips.forEach(chip => {
     chip.addEventListener('click', () => {
       input.value = chip.getAttribute('data-prompt');
       form.dispatchEvent(new Event('submit'));
@@ -1070,12 +1077,13 @@ function setupChat() {
 
   if (btnClear) {
     btnClear.addEventListener('click', () => {
+      conversationHistory.length = 0;
       messages.innerHTML = `
         <div class="message assistant">
           <div class="message-avatar">🤖</div>
           <div class="message-body">
-            <div class="message-meta">OpenSource AI Mentor • <span class="badge-mode">Ready</span></div>
-            <div class="message-bubble"><p>Conversation cleared. What open-source topic or issue would you like to explore?</p></div>
+            <div class="message-meta">OpenSource AI Assistant • <span class="badge-mode">Ready</span></div>
+            <div class="message-bubble"><p>Conversation cleared. What topic, coding question, or concept would you like to explore?</p></div>
           </div>
         </div>
       `;
@@ -1088,41 +1096,77 @@ function setupChat() {
     if (!query) return;
 
     appendChatMessage('user', query);
+    conversationHistory.push({ role: 'user', content: query });
     input.value = '';
 
     const loadingId = 'loading-' + Date.now();
     appendLoadingMessage(loadingId);
 
+    // Fetch relevant Reddit discussions if Reddit source is checked
+    let redditDiscussions = [];
+    if (srcReddit && srcReddit.checked) {
+      try {
+        const redditRes = await fetch('/api/reddit/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query, limit: 3 })
+        });
+        if (redditRes.ok) {
+          const redditData = await redditRes.json();
+          if (redditData && redditData.success && Array.isArray(redditData.posts)) {
+            redditDiscussions = redditData.posts;
+          }
+        }
+      } catch (err) {
+        // Continue without Reddit context
+      }
+    }
+
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: query, repoContext: currentRepo })
+        body: JSON.stringify({
+          message: query,
+          repoContext: (srcGithub && srcGithub.checked) ? currentRepo : null,
+          history: conversationHistory,
+          redditDiscussions
+        })
       });
 
       const data = await res.json();
       removeLoadingMessage(loadingId);
-      if (data && data.success) {
+      if (data && data.success && data.reply) {
         appendChatMessage('assistant', data.reply, data.mode);
+        conversationHistory.push({ role: 'assistant', content: data.reply });
         if (window.ClientMetrics) window.ClientMetrics.recordQuestion(query);
         return;
       }
     } catch (err) {
-      // Fallback
+      // Offline fallback
     }
 
     removeLoadingMessage(loadingId);
-    if (window.CLIENT_KNOWLEDGE) {
-      const reply = window.CLIENT_KNOWLEDGE.chat(query, currentRepo);
-      appendChatMessage('assistant', reply, 'Instant Engine');
+    let reply = '';
+    if (window.OfflineAIEngine) {
+      reply = window.OfflineAIEngine.answer(query, (srcGithub && srcGithub.checked) ? currentRepo : null, conversationHistory);
+    } else if (window.CLIENT_KNOWLEDGE) {
+      reply = window.CLIENT_KNOWLEDGE.chat(query, currentRepo);
+    } else {
+      reply = 'The AI service is currently unavailable. Please try again.';
     }
-  });
 
-  function appendChatMessage(role, content, mode = '') {
+    appendChatMessage('assistant', reply, 'Universal AI Engine');
+    conversationHistory.push({ role: 'assistant', content: reply });
+    if (window.ClientMetrics) window.ClientMetrics.recordQuestion(query);
+  });
+}
+
+function appendChatMessage(role, content, mode = '') {
     const div = document.createElement('div');
     div.className = `message ${role}`;
     const avatar = role === 'user' ? '👤' : '🤖';
-    const meta = role === 'user' ? 'You' : `OpenSource AI Mentor • <span class="badge-mode">${mode || 'Engine'}</span>`;
+    const meta = role === 'user' ? 'You' : `OpenSource AI Assistant • <span class="badge-mode">${mode || 'Universal AI'}</span>`;
     const formattedContent = role === 'assistant' && window.marked 
       ? window.marked.parse(content) 
       : `<p>${content}</p>`;

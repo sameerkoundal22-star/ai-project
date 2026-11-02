@@ -163,21 +163,22 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
-  // Chatbot AI Mentor API
+  // Chatbot AI Mentor API with multi-turn conversation history
   if (pathname === '/api/chat' && method === 'POST') {
     try {
       const body = await parseBody(req);
-      const { message, repoContext } = body;
+      const { message, repoContext, history, redditDiscussions } = body;
       if (!message) {
         return sendJSON(res, 400, { success: false, error: 'Message cannot be empty.' });
       }
-      const replyData = await aiService.answerChat({ message, repoContext });
+      const replyData = await aiService.answerChat({ message, repoContext, history, redditDiscussions });
       metricsService.recordQuestionAsked(message);
       return sendJSON(res, 200, {
         success: true,
         reply: replyData.reply,
         mode: replyData.mode,
-        provider: replyData.provider
+        provider: replyData.provider,
+        citations: replyData.citations
       });
     } catch (err) {
       return sendJSON(res, 500, { success: false, error: err.message });
