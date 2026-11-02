@@ -846,6 +846,18 @@ function setupRepoAnalysis() {
   const form = document.getElementById('repoSearchForm');
   const input = document.getElementById('repoUrlInput');
   const btn = document.getElementById('btnAnalyzeMain');
+  const btnClear = document.getElementById('btnClearRepoInput');
+
+  if (input) {
+    input.value = ''; // Ensure field is strictly empty on load
+  }
+
+  if (btnClear && input) {
+    btnClear.addEventListener('click', () => {
+      input.value = '';
+      input.focus();
+    });
+  }
 
   if (form) {
     form.addEventListener('submit', (e) => {
@@ -891,7 +903,7 @@ async function analyzeRepository(repoSlugOrUrl) {
   const targetSlug = ALIASES[cleanInput.toLowerCase()] || cleanInput;
 
   if (!targetSlug) {
-    showToast('Please enter a valid GitHub repository (e.g. facebook/react).');
+    showToast('Please enter a GitHub repository URL (e.g. https://github.com/owner/repository).');
     if (btnText) btnText.textContent = 'Analyze Repository';
     if (btnSpinner) btnSpinner.style.display = 'none';
     if (btn) btn.disabled = false;
@@ -1156,6 +1168,19 @@ function setupTriage() {
   const descInput = document.getElementById('triageDesc');
   const btnRun = document.getElementById('btnRunTriage');
   const btnCopy = document.getElementById('btnCopyTriage');
+  const btnClearTriage = document.getElementById('btnClearTriageForm');
+
+  if (btnClearTriage) {
+    btnClearTriage.addEventListener('click', () => {
+      if (titleInput) titleInput.value = '';
+      if (descInput) descInput.value = '';
+      if (select) select.value = '';
+      const summary = document.getElementById('triageSummary');
+      if (summary) summary.textContent = 'Select an issue or paste title and description on the left to generate an automated triage analysis.';
+      const area = document.getElementById('triageAffectedArea');
+      if (area) area.textContent = 'Awaiting input analysis...';
+    });
+  }
 
   if (!btnRun) return;
 
@@ -1266,6 +1291,20 @@ function setupCodeReview() {
   const langSelect = document.getElementById('codeLangSelect');
   const contextInput = document.getElementById('codeContextInput');
   const btnCopyImproved = document.getElementById('btnCopyImprovedCode');
+  const btnClearReview = document.getElementById('btnClearCodeReview');
+
+  if (btnClearReview) {
+    btnClearReview.addEventListener('click', () => {
+      if (codeInput) codeInput.value = '';
+      if (contextInput) contextInput.value = '';
+      const scoreEl = document.getElementById('reviewScore');
+      if (scoreEl) scoreEl.textContent = '-- / 10';
+      const listEl = document.getElementById('reviewIssuesList');
+      if (listEl) listEl.innerHTML = '<div style="font-size: 0.85rem; color: var(--text-muted);">Paste code on the left and click \"Review Code\" to begin.</div>';
+      const improved = document.getElementById('reviewImprovedCode');
+      if (improved) improved.textContent = '// Refactored code will appear here';
+    });
+  }
 
   if (!btnRun) return;
 
@@ -1277,12 +1316,10 @@ function setupCodeReview() {
     });
   }
 
+  // Language select changes mode without overwriting code input
   if (langSelect && codeInput) {
     langSelect.addEventListener('change', () => {
-      const lang = langSelect.value;
-      if (SAMPLES[lang]) {
-        codeInput.value = SAMPLES[lang];
-      }
+      // Keep user-entered code untouched
     });
   }
 
