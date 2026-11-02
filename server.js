@@ -58,25 +58,25 @@ const server = http.createServer(async (req, res) => {
     return res.end();
   }
 
-  // --- AUTHENTICATION API ENDPOINTS (SECURE OTP & SESSIONS) ---
+  // --- AUTHENTICATION API ENDPOINTS (CREDENTIALS & SESSIONS) ---
 
-  // POST /api/auth/send-otp
-  if (pathname === '/api/auth/send-otp' && method === 'POST') {
+  // POST /api/auth/register
+  if (pathname === '/api/auth/register' && method === 'POST') {
     try {
       const body = await parseBody(req);
-      const result = await authService.requestOtp(body);
-      return sendJSON(res, 200, result);
+      const result = authService.register(body);
+      return sendJSON(res, 201, { success: true, user: result.user, token: result.token });
     } catch (err) {
       return sendJSON(res, 400, { success: false, error: err.message });
     }
   }
 
-  // POST /api/auth/verify-otp
-  if (pathname === '/api/auth/verify-otp' && method === 'POST') {
+  // POST /api/auth/login
+  if (pathname === '/api/auth/login' && method === 'POST') {
     try {
       const body = await parseBody(req);
-      const result = await authService.verifyOtp(body);
-      return sendJSON(res, 200, result);
+      const result = authService.login(body);
+      return sendJSON(res, 200, { success: true, user: result.user, token: result.token });
     } catch (err) {
       return sendJSON(res, 400, { success: false, error: err.message });
     }

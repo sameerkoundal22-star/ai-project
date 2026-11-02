@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=950">
+  <link rel="stylesheet" href="style.css?v=970">
   <!-- Markdown parser -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
@@ -19,78 +19,73 @@
        ENTRY POINT: CLEAN & SIMPLE LOGIN PAGE
        ========================================= -->
   <div id="authWrapper" class="auth-wrapper" style="display: flex;">
-    <div id="loginCard" class="auth-card">
+    <!-- Interactive AI & Developer Particles Canvas -->
+    <canvas id="loginCanvas" class="login-canvas"></canvas>
+
+    <!-- Subtle Floating Developer & AI Emblems -->
+    <div class="decor-orbit decor-orbit-1" aria-hidden="true">&lt;/&gt;</div>
+    <div class="decor-orbit decor-orbit-2" aria-hidden="true">{ }</div>
+    <div class="decor-orbit decor-orbit-3" aria-hidden="true">git</div>
+    <div class="decor-orbit decor-orbit-4" aria-hidden="true">λ</div>
+
+    <div id="loginCard" class="auth-card glass-card">
       <div class="auth-header">
-        <div class="auth-logo">
-          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+        <div class="auth-logo-badge">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
             <circle cx="12" cy="12" r="9"></circle>
             <path d="M12 3a9 9 0 0 1 9 9"></path>
             <circle cx="12" cy="12" r="3"></circle>
           </svg>
         </div>
         <h2 class="auth-title">OpenSource AI</h2>
-        <h3 class="auth-welcome">Welcome back</h3>
-        <p class="auth-subtitle">Sign in with OTP</p>
+        <p class="auth-tagline">Open-source contribution made easier with AI.</p>
+        
+        <div class="auth-welcome-block">
+          <h3 class="auth-welcome">Welcome back <span class="wave-emoji">👋</span></h3>
+          <p class="auth-subtitle">Sign in to continue to your OpenSource AI workspace.</p>
+        </div>
       </div>
 
       <div id="loginAlert" class="auth-alert"></div>
 
-      <!-- OTP Method Switcher: Mobile vs Email -->
-      <div class="otp-method-toggle" id="otpMethodToggle">
-        <button type="button" class="otp-toggle-btn active" id="btnMethodMobile" data-method="mobile">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
-            <line x1="12" y1="18" x2="12.01" y2="18"></line>
-          </svg>
-          <span>Mobile Number</span>
-        </button>
-        <button type="button" class="otp-toggle-btn" id="btnMethodEmail" data-method="email">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-            <polyline points="22,6 12,13 2,6"></polyline>
-          </svg>
-          <span>Email</span>
-        </button>
-      </div>
-
-      <!-- STEP 1: Enter Mobile / Email -->
-      <div id="otpStepInput" class="otp-step">
+      <!-- Traditional Credentials Login Form -->
+      <form id="loginForm" class="auth-form" novalidate>
         <div class="auth-form-group">
-          <label class="auth-label" id="lblOtpContact" for="otpContactInput">Mobile Number</label>
+          <label class="auth-label" for="loginIdentifier">Email / Gmail / User ID</label>
           <div class="auth-input-wrapper">
-            <input type="tel" id="otpContactInput" class="auth-input" placeholder="+91 98765 43210" autocomplete="tel">
-          </div>
-          <p class="auth-help-text" id="otpContactHelp">We will send a 6-digit one-time password to verify.</p>
-        </div>
-
-        <button type="button" id="btnSendOtp" class="auth-btn-submit">
-          <span>Send OTP</span>
-        </button>
-      </div>
-
-      <!-- STEP 2: Enter 6-digit OTP -->
-      <div id="otpStepVerify" class="otp-step" style="display: none;">
-        <div class="otp-target-display">
-          <span>Code sent to <strong id="otpTargetDisplayVal"></strong></span>
-          <button type="button" class="otp-change-btn" id="btnChangeTarget">Change</button>
-        </div>
-
-        <div class="auth-form-group">
-          <label class="auth-label" for="otpCodeInput">Enter OTP</label>
-          <div class="auth-input-wrapper">
-            <input type="text" id="otpCodeInput" class="auth-input otp-code-field" placeholder="• • • • • •" maxlength="6" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code">
+            <svg class="input-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+              <circle cx="12" cy="7" r="4"></circle>
+            </svg>
+            <input type="text" id="loginIdentifier" class="auth-input" placeholder="developer@opensource.ai or developer" required autocomplete="username">
           </div>
         </div>
 
-        <button type="button" id="btnVerifyOtp" class="auth-btn-submit">
-          <span>Verify OTP</span>
-        </button>
-
-        <div class="otp-resend-row">
-          <span id="resendTimerText" class="resend-timer-text">Resend OTP in <strong id="resendCountdown">30s</strong></span>
-          <button type="button" id="btnResendOtp" class="link-btn resend-btn" style="display: none;">Resend OTP</button>
+        <div class="auth-form-group">
+          <label class="auth-label" for="loginPassword">Password</label>
+          <div class="auth-input-wrapper">
+            <svg class="input-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+            <input type="password" id="loginPassword" class="auth-input" placeholder="Enter your password" required autocomplete="current-password">
+            <button type="button" class="btn-toggle-pwd" id="btnTogglePassword" aria-label="Toggle password visibility">
+              <svg id="eyeIconOpen" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+              <svg id="eyeIconClosed" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display: none;">
+                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                <line x1="1" y1="1" x2="23" y2="23"></line>
+              </svg>
+            </button>
+          </div>
         </div>
-      </div>
+
+        <button type="submit" id="btnLoginSubmit" class="auth-btn-submit">
+          <span>Login</span>
+        </button>
+      </form>
 
       <!-- Clear Divider -->
       <div class="auth-divider">
@@ -838,6 +833,6 @@
 
   <!-- Client Knowledge Engine & Main App -->
   <script src="knowledge.js?v=901"></script>
-  <script src="app.js?v=960"></script>
+  <script src="app.js?v=970"></script>
 </body>
 </html>
