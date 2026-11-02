@@ -1,42 +1,45 @@
-// Comprehensive GitHub Repository Data & Deep Intelligence Service
+// Comprehensive GitHub Repository Data, Request Budgeting & Rate Limit Manager
 const https = require('https');
 const aiService = require('./ai-service');
 
 class GitHubService {
   constructor(token = process.env.GITHUB_TOKEN || '') {
     this.token = token;
-    this.cache = new Map(); // In-memory cache for fetched repos: owner/repo -> { data, timestamp }
+    // Multi-tier in-memory cache:
+    // github:repo:{owner}:{repo} -> { data, timestamp }
+    this.cache = new Map();
+    // Cache for rate limit checks to prevent spamming /rate_limit
+    this.rateLimitCache = null;
+    this.rateLimitCacheTime = 0;
+    // Request de-duplication: active promises map to prevent concurrent duplicate queries
+    this.pendingRequests = new Map();
   }
 
   setToken(token) {
     this.token = (token || '').trim();
+    // Clear rate limit cache on token change
+    this.rateLimitCache = null;
+    this.rateLimitCacheTime = 0;
   }
 
   isConfigured() {
     return Boolean(this.token && this.token.length > 5);
   }
 
-  // Robust URL / Slug Parser
-  // Accepts:
-  // 1. "facebook/react"
-  // 2. "https://github.com/facebook/react"
-  // 3. "https://github.com/facebook/react/"
-  // 4. "github.com/facebook/react"
-  // 5. "http://github.com/facebook/react.git"
+  // Parse repo URL or slug safely
   parseRepoUrl(input) {
     if (!input || typeof input !== 'string') return null;
     let clean = input.trim();
 
-    // Strip protocol and domain
     clean = clean.replace(/^(https?:\/\/)?(www\.)?github\.com\/?/i, '');
     clean = clean.replace(/\.git$/i, '');
     clean = clean.replace(/^\/+/, '').replace(/\/+$/, '');
 
-    // Common aliases for developer convenience
     const ALIASES = {
       'react': 'facebook/react',
       'vscode': 'microsoft/vscode',
       'tensorflow': 'tensorflow/tensorflow',
+      'fastapi': 'fastapi/fastapi',
       'vue': 'vuejs/core',
       'nextjs': 'vercel/next.js',
       'next.js': 'vercel/next.js',
@@ -53,16 +56,15 @@ class GitHubService {
     if (parts.length >= 2) {
       const owner = parts[0];
       const repo = parts[1];
-      // Validate characters
       if (/^[a-zA-Z0-9_\-\.]+$/.test(owner) && /^[a-zA-Z0-9_\-\.]+$/.test(repo)) {
-        return { owner, repo };
+        return { owner, repo, slug: `${owner}/${repo}` };
       }
     }
 
     return null;
   }
 
-  // Core HTTPS Request with automatic 301/302 redirect following
+  // Core HTTPS Request with automatic 301/302 redirect following & rate-limit diagnostics
   async apiRequest(pathOrUrl, redirectCount = 0) {
     if (redirectCount > 4) {
       return { ok: false, error: 'Too many redirects from GitHub API', status: 310 };
@@ -95,6 +97,11 @@ class GitHubService {
       };
 
       const req = https.request(options, (res) => {
+        // Track rate limit headers
+        const rateLimitRemaining = res.headers['x-ratelimit-remaining'] !== undefined ? parseInt(res.headers['x-ratelimit-remaining'], 10) : null;
+        const rateLimitLimit = res.headers['x-ratelimit-limit'] !== undefined ? parseInt(res.headers['x-ratelimit-limit'], 10) : null;
+        const rateLimitReset = res.headers['x-ratelimit-reset'] !== undefined ? parseInt(res.headers['x-ratelimit-reset'], 10) : null;
+
         // Handle HTTP 301 / 302 redirects
         if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
           return this.apiRequest(res.headers.location, redirectCount + 1).then(resolve);
@@ -103,11 +110,17 @@ class GitHubService {
         let body = '';
         res.on('data', chunk => body += chunk);
         res.on('end', () => {
+          const rateInfo = {
+            limit: rateLimitLimit,
+            remaining: rateLimitRemaining,
+            reset: rateLimitReset
+          };
+
           if (res.statusCode >= 200 && res.statusCode < 300) {
             try {
-              resolve({ ok: true, data: JSON.parse(body), status: res.statusCode, headers: res.headers });
+              resolve({ ok: true, data: JSON.parse(body), status: res.statusCode, headers: res.headers, rateInfo });
             } catch (e) {
-              resolve({ ok: false, error: 'JSON parse error', status: res.statusCode });
+              resolve({ ok: false, error: 'JSON parse error', status: res.statusCode, rateInfo });
             }
           } else {
             let errorMsg = `GitHub API HTTP ${res.statusCode}`;
@@ -115,7 +128,7 @@ class GitHubService {
               const errObj = JSON.parse(body);
               if (errObj && errObj.message) errorMsg = errObj.message;
             } catch (e) {}
-            resolve({ ok: false, error: errorMsg, status: res.statusCode, headers: res.headers, body });
+            resolve({ ok: false, error: errorMsg, status: res.statusCode, headers: res.headers, rateInfo, body });
           }
         });
       });
@@ -129,31 +142,40 @@ class GitHubService {
     });
   }
 
-  // Fetch raw or base64 file content safely
-  async fetchFileContent(owner, repo, filename) {
-    const res = await this.apiRequest(`/repos/${owner}/${repo}/contents/${filename}`);
-    if (res.ok && res.data) {
-      if (res.data.content && res.data.encoding === 'base64') {
-        try {
-          return Buffer.from(res.data.content, 'base64').toString('utf8');
-        } catch (e) {
-          return null;
-        }
-      }
+  // Rate Limit Inspector with 30s cache to prevent quota consumption
+  async getRateLimit() {
+    if (this.rateLimitCache && (Date.now() - this.rateLimitCacheTime < 30000)) {
+      return this.rateLimitCache;
     }
-    return null;
+
+    const res = await this.apiRequest('/rate_limit');
+    if (res.ok && res.data && res.data.resources && res.data.resources.core) {
+      const core = res.data.resources.core;
+      this.rateLimitCache = {
+        limit: core.limit,
+        remaining: core.remaining,
+        reset: core.reset,
+        used: core.used,
+        isConfigured: this.isConfigured()
+      };
+      this.rateLimitCacheTime = Date.now();
+      return this.rateLimitCache;
+    }
+
+    return {
+      limit: this.isConfigured() ? 5000 : 60,
+      remaining: null,
+      reset: null,
+      isConfigured: this.isConfigured()
+    };
   }
 
-  // Detect tech stack from file tree, language distributions, and configs
-  detectTechStack(languages = {}, treeItems = [], packageJsonRaw = null, requirementsRaw = null) {
+  // Detect tech stack from tree, language distributions, and configs
+  detectTechStack(languages = {}, treeItems = []) {
     const detected = new Set();
-
-    // 1. Languages reported by GitHub
     Object.keys(languages).forEach(lang => detected.add(lang));
 
-    // 2. File patterns
     const filenames = treeItems.map(i => (i.path || i.name || '').toLowerCase());
-
     if (filenames.some(f => f.includes('dockerfile') || f.includes('docker-compose'))) detected.add('Docker');
     if (filenames.some(f => f.endsWith('.k8s.yaml') || f.includes('kubernetes') || f.includes('helm'))) detected.add('Kubernetes');
     if (filenames.some(f => f === 'cargo.toml')) detected.add('Rust / Cargo');
@@ -162,54 +184,15 @@ class GitHubService {
     if (filenames.some(f => f === 'build.gradle' || f === 'build.gradle.kts')) detected.add('Gradle');
     if (filenames.some(f => f === 'cmakelists.txt')) detected.add('CMake');
     if (filenames.some(f => f === 'composer.json')) detected.add('Composer / PHP');
-    if (filenames.some(f => f === 'gemfile')) detected.add('Ruby Bundler');
-
-    // 3. Node package.json inspection
-    if (packageJsonRaw) {
-      try {
-        const pkg = JSON.parse(packageJsonRaw);
-        const deps = { ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) };
-        if (deps.react) detected.add('React');
-        if (deps.next) detected.add('Next.js');
-        if (deps.vue) detected.add('Vue.js');
-        if (deps['@angular/core']) detected.add('Angular');
-        if (deps.svelte) detected.add('Svelte');
-        if (deps.express) detected.add('Express.js');
-        if (deps.fastify) detected.add('Fastify');
-        if (deps.electron) detected.add('Electron');
-        if (deps.typescript) detected.add('TypeScript');
-        if (deps.tailwindcss) detected.add('Tailwind CSS');
-        if (deps.jest || deps.vitest || deps.mocha) detected.add('Automated Testing Harness');
-      } catch (e) {}
-    }
-
-    // 4. Python requirements inspection
-    if (requirementsRaw) {
-      const low = requirementsRaw.toLowerCase();
-      if (low.includes('django')) detected.add('Django');
-      if (low.includes('flask')) detected.add('Flask');
-      if (low.includes('fastapi')) detected.add('FastAPI');
-      if (low.includes('torch') || low.includes('pytorch')) detected.add('PyTorch');
-      if (low.includes('tensorflow')) detected.add('TensorFlow');
-      if (low.includes('numpy')) detected.add('NumPy');
-      if (low.includes('pandas')) detected.add('Pandas');
-      if (low.includes('pytest')) detected.add('PyTest');
-    }
+    if (filenames.some(f => f === 'package.json')) detected.add('Node.js / npm');
+    if (filenames.some(f => f === 'requirements.txt' || f === 'pyproject.toml')) detected.add('Python');
 
     return Array.from(detected);
   }
 
-  // Extract instructions & commands from README
-  extractDocumentationInsights(readme) {
-    if (!readme) {
-      return {
-        summary: 'No README.md documentation provided.',
-        commands: ['git clone https://github.com/owner/repository.git'],
-        hasTesting: false,
-        hasBuild: false
-      };
-    }
-
+  // Extract quick start instructions from README without extra API requests
+  extractQuickCommands(readme) {
+    if (!readme) return ['git clone <repository_url>'];
     const commands = [];
     const codeBlocks = readme.match(/```(?:bash|sh|shell|cmd|powershell)?\s*\n([\s\S]*?)```/gi) || [];
 
@@ -222,30 +205,20 @@ class GitHubService {
         l.startsWith('gradle') || l.startsWith('docker') || l.startsWith('./')
       ));
       lines.slice(0, 3).forEach(c => {
-        if (!commands.includes(c) && commands.length < 6) commands.push(c);
+        if (!commands.includes(c) && commands.length < 5) commands.push(c);
       });
     });
 
     if (commands.length === 0) {
       commands.push('git clone <repository_url>', 'npm install # (or language equivalent build command)');
     }
-
-    const low = readme.toLowerCase();
-    const hasTesting = low.includes('test') || low.includes('pytest') || low.includes('jest');
-    const hasBuild = low.includes('build') || low.includes('compile') || low.includes('bundle');
-
-    return {
-      commands,
-      hasTesting,
-      hasBuild
-    };
+    return commands;
   }
 
-  // Generate intelligent, repository-specific AI analysis based on retrieved factual data
+  // AI Analysis using strictly factual context
   async generateAIAnalysis(repoData) {
-    const { name, owner, description, mainLanguage, techStack, structureTree, docAvailability, issues, pullRequests, readmeSnippet } = repoData;
+    const { name, owner, description, mainLanguage, techStack, structureTree, docAvailability, issues, readmeSnippet } = repoData;
 
-    // Prompt for Gemini
     const systemPrompt = `You are a Principal Open-Source Software Architect.
 Analyze the provided REAL GitHub repository data and generate a structured, comprehensive, and repository-specific analysis.
 CRITICAL RULES:
@@ -263,8 +236,7 @@ CRITICAL RULES:
     "Step 2: How to setup and run tests",
     "Step 3: How to find beginner issues",
     "Step 4: PR submission guideline"
-  ],
-  "recommendedIssueIds": [/* numbers of actual issues from the provided list that are good starting points */]
+  ]
 }`;
 
     const userPrompt = `Repository: ${owner}/${name}
@@ -282,7 +254,7 @@ Documentation Available:
 - SECURITY: ${docAvailability.security ? 'Yes' : 'No'}
 
 Real Open Issues Sample:
-${issues.slice(0, 8).map(i => `#${i.number}: ${i.title} (Labels: ${i.labels.join(', ') || 'None'})`).join('\n')}
+${issues.slice(0, 6).map(i => `#${i.number}: ${i.title}`).join('\n')}
 
 README Overview Excerpt:
 ${(readmeSnippet || '').substring(0, 1500)}`;
@@ -300,12 +272,10 @@ ${(readmeSnippet || '').substring(0, 1500)}`;
             };
           }
         }
-      } catch (e) {
-        // Fall back to rule-based contextual synthesis
-      }
+      } catch (e) {}
     }
 
-    // Contextual deterministic synthesis when Gemini API key is not configured
+    // Contextual deterministic synthesis
     const purpose = description || `${name} is an open-source software project maintained by ${owner}.`;
     const dirs = structureTree.filter(s => s.type === 'dir').map(d => d.name);
     
@@ -340,12 +310,6 @@ ${(readmeSnippet || '').substring(0, 1500)}`;
       `4. Create a descriptive feature branch and submit a structured PR linking the relevant issue.`
     ];
 
-    // Pick issues with beginner labels
-    const recommendedIssueIds = issues
-      .filter(i => (i.labels || []).some(l => /good first|beginner|starter|help wanted|docs/i.test(l)))
-      .slice(0, 4)
-      .map(i => i.number);
-
     return {
       analysis: {
         projectPurpose: purpose,
@@ -353,59 +317,90 @@ ${(readmeSnippet || '').substring(0, 1500)}`;
         beginnerFriendlyAreas: beginnerAreas,
         intermediateAreas: intermediateAreas,
         advancedAreas: advancedAreas,
-        contributorRoadmap: roadmap,
-        recommendedIssueIds: recommendedIssueIds.length > 0 ? recommendedIssueIds : issues.slice(0, 3).map(i => i.number)
+        contributorRoadmap: roadmap
       },
       source: 'Repository Context Engine'
     };
   }
 
-  // Complete, End-to-End Real Repository Analysis Pipeline
+  // Low-Budget, Optimized Repository Analysis
+  // Strict request budget: Only 5 essential API calls maximum per repository
+  // 1. /repos/{owner}/{repo}
+  // 2. /repos/{owner}/{repo}/contents?ref={branch}
+  // 3. /repos/{owner}/{repo}/languages
+  // 4. /repos/{owner}/{repo}/issues?state=open&per_page=10
+  // 5. /repos/{owner}/{repo}/readme
   async analyzeRepository(urlOrSlug) {
     const parsed = this.parseRepoUrl(urlOrSlug);
     if (!parsed) {
-      throw new Error('Invalid repository format. Please enter "owner/repo" or a valid GitHub URL (e.g. facebook/react or https://github.com/microsoft/vscode).');
+      const err = new Error('Invalid repository format. Please enter "owner/repo" or a valid GitHub URL (e.g. facebook/react or https://github.com/microsoft/vscode).');
+      err.type = 'INVALID_FORMAT';
+      throw err;
     }
 
-    const { owner, repo } = parsed;
-    const cacheKey = `${owner}/${repo}`.toLowerCase();
+    const { owner, repo, slug } = parsed;
+    const cacheKey = `github:repo:${owner}:${repo}`.toLowerCase();
 
-    // Check cache (TTL 5 minutes)
+    // 1. Check in-memory cache (TTL: 10 minutes)
     const cached = this.cache.get(cacheKey);
-    if (cached && (Date.now() - cached.timestamp < 300000)) {
-      return cached.data;
+    if (cached && (Date.now() - cached.timestamp < 600000)) {
+      return {
+        ...cached.data,
+        fromCache: true
+      };
     }
 
+    // 2. Request de-duplication: if another request for the same repo is currently in flight, await it
+    if (this.pendingRequests.has(cacheKey)) {
+      return this.pendingRequests.get(cacheKey);
+    }
+
+    const fetchPromise = this._executeAnalyzePipeline(owner, repo, slug, cacheKey);
+    this.pendingRequests.set(cacheKey, fetchPromise);
+
+    try {
+      const result = await fetchPromise;
+      return result;
+    } finally {
+      this.pendingRequests.delete(cacheKey);
+    }
+  }
+
+  async _executeAnalyzePipeline(owner, repo, slug, cacheKey) {
     // Step 1: Fetch Repository Core Metadata
     const repoRes = await this.apiRequest(`/repos/${owner}/${repo}`);
 
     if (!repoRes.ok) {
-      if (repoRes.status === 404) {
-        throw new Error(`Repository "${owner}/${repo}" was not found on GitHub (404). Please verify the owner and repository name.`);
-      } else if (repoRes.status === 403) {
-        throw new Error('GitHub API rate limit exceeded (403). Please add your GitHub Personal Access Token in API Settings to unlock 5,000 requests/hr.');
-      } else if (repoRes.status === 401) {
-        throw new Error('GitHub authentication failed (401). Please check the validity of your GitHub token in Settings.');
-      } else {
-        throw new Error(`Failed to fetch repository from GitHub: ${repoRes.error || 'Check network connection'}`);
-      }
+      const isRateLimit = repoRes.status === 403 && (
+        (repoRes.rateInfo && repoRes.rateInfo.remaining === 0) ||
+        (repoRes.error && repoRes.error.toLowerCase().includes('rate limit'))
+      );
+
+      const err = new Error(
+        isRateLimit
+          ? 'GitHub API rate limit reached.'
+          : repoRes.status === 404
+            ? `Repository "${owner}/${repo}" was not found on GitHub (404). Please verify the owner and repository name.`
+            : repoRes.status === 401
+              ? 'GitHub authentication failed (401). Please check your token in Settings.'
+              : `Failed to fetch repository from GitHub: ${repoRes.error || 'Check network connection'}`
+      );
+
+      err.status = repoRes.status;
+      err.isRateLimit = isRateLimit;
+      err.rateInfo = repoRes.rateInfo || null;
+      throw err;
     }
 
     const d = repoRes.data;
     const defaultBranch = d.default_branch || 'main';
 
-    // Step 2: Fetch Repository Contents / Tree, Languages, Issues, and PRs in Parallel
-    const [treeRes, langRes, issuesRes, pullsRes, readmeRaw, contributingRaw, codeOfConductRaw, securityRaw, pkgJsonRaw, reqsRaw] = await Promise.all([
+    // Step 2: Fetch only 4 secondary endpoints in parallel (Budget-friendly: Total 5 calls)
+    const [treeRes, langRes, issuesRes, readmeRes] = await Promise.all([
       this.apiRequest(`/repos/${owner}/${repo}/contents?ref=${defaultBranch}`),
       this.apiRequest(`/repos/${owner}/${repo}/languages`),
-      this.apiRequest(`/repos/${owner}/${repo}/issues?state=open&per_page=15&sort=updated`),
-      this.apiRequest(`/repos/${owner}/${repo}/pulls?state=open&per_page=10&sort=updated`),
-      this.fetchFileContent(owner, repo, 'README.md'),
-      this.fetchFileContent(owner, repo, 'CONTRIBUTING.md'),
-      this.fetchFileContent(owner, repo, 'CODE_OF_CONDUCT.md'),
-      this.fetchFileContent(owner, repo, 'SECURITY.md'),
-      this.fetchFileContent(owner, repo, 'package.json'),
-      this.fetchFileContent(owner, repo, 'requirements.txt')
+      this.apiRequest(`/repos/${owner}/${repo}/issues?state=open&per_page=10&sort=updated`),
+      this.apiRequest(`/repos/${owner}/${repo}/readme`)
     ]);
 
     // Parse structure tree
@@ -420,72 +415,75 @@ ${(readmeSnippet || '').substring(0, 1500)}`;
           html_url: item.html_url
         });
       });
-      // Sort: directories first, then files alphabetically
-      structureTree.sort((a, b) => {
-        if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
-        return a.name.localeCompare(b.name);
-      });
+      structureTree.sort((a, b) => (a.type !== b.type ? (a.type === 'dir' ? -1 : 1) : a.name.localeCompare(b.name)));
     }
 
-    // Languages
+    // Parse languages
     const languages = (langRes.ok && langRes.data && typeof langRes.data === 'object') ? langRes.data : {};
 
-    // Issues
+    // Parse issues (separate real pull requests from issues without extra PR call)
     const rawIssues = (issuesRes.ok && Array.isArray(issuesRes.data)) ? issuesRes.data : [];
-    const issues = rawIssues
-      .filter(i => !i.pull_request) // filter out pull requests which GitHub API returns under /issues
-      .map(i => {
-        const labels = (i.labels || []).map(l => (typeof l === 'object' ? l.name : l));
-        const isBeginner = labels.some(l => /good first|beginner|easy|help wanted|starter/i.test(l));
-        return {
+    const issues = [];
+    const pullRequests = [];
+
+    rawIssues.forEach(i => {
+      const labels = (i.labels || []).map(l => (typeof l === 'object' ? l.name : l));
+      const isBeginner = labels.some(l => /good first|beginner|easy|help wanted|starter/i.test(l));
+
+      if (i.pull_request) {
+        pullRequests.push({
+          number: i.number,
+          title: i.title,
+          author: i.user?.login || 'contributor',
+          created_at: i.created_at,
+          updated_at: i.updated_at,
+          html_url: i.html_url,
+          state: i.state
+        });
+      } else {
+        issues.push({
           id: i.id,
           number: i.number,
           title: i.title,
           labels,
           author: i.user?.login || 'contributor',
-          authorAvatar: i.user?.avatar_url || null,
           comments: i.comments || 0,
           html_url: i.html_url,
           created_at: i.created_at,
           updated_at: i.updated_at,
           state: i.state,
           difficulty: isBeginner ? 'Beginner' : 'Intermediate'
-        };
-      });
+        });
+      }
+    });
 
-    // Pull Requests
-    const rawPulls = (pullsRes.ok && Array.isArray(pullsRes.data)) ? pullsRes.data : [];
-    const pullRequests = rawPulls.map(p => ({
-      number: p.number,
-      title: p.title,
-      author: p.user?.login || 'contributor',
-      authorAvatar: p.user?.avatar_url || null,
-      created_at: p.created_at,
-      updated_at: p.updated_at,
-      html_url: p.html_url,
-      draft: Boolean(p.draft),
-      state: p.state
-    }));
+    // Parse README
+    let readmeText = '';
+    if (readmeRes.ok && readmeRes.data && readmeRes.data.content) {
+      try {
+        readmeText = Buffer.from(readmeRes.data.content, 'base64').toString('utf8');
+      } catch (e) {
+        readmeText = '';
+      }
+    }
 
-    // Detect real technologies
-    const techStack = this.detectTechStack(languages, structureTree, pkgJsonRaw, reqsRaw);
+    // Technology stack
+    const techStack = this.detectTechStack(languages, structureTree);
 
-    // Documentation availability
+    // Documentation availability checks from tree items (ZERO extra API calls)
     const docAvailability = {
-      readme: Boolean(readmeRaw),
-      contributing: Boolean(contributingRaw),
-      codeOfConduct: Boolean(codeOfConductRaw),
-      security: Boolean(securityRaw)
+      readme: Boolean(readmeText),
+      contributing: structureTree.some(s => /contributing/i.test(s.name)),
+      codeOfConduct: structureTree.some(s => /code_of_conduct/i.test(s.name)),
+      security: structureTree.some(s => /security/i.test(s.name))
     };
 
-    // Documentation insights & quick start commands
-    const docInsights = this.extractDocumentationInsights(readmeRaw);
+    const quickCommands = this.extractQuickCommands(readmeText);
 
-    // Construct preliminary data object
     const repoData = {
       name: d.name,
       owner: d.owner?.login || owner,
-      fullName: d.full_name || `${owner}/${repo}`,
+      fullName: d.full_name || slug,
       description: d.description || 'No description provided.',
       homepage: d.homepage || null,
       html_url: d.html_url,
@@ -503,31 +501,29 @@ ${(readmeSnippet || '').substring(0, 1500)}`;
       license: d.license?.name || (d.license?.spdx_id ? d.license.spdx_id : 'Not specified'),
       topics: Array.isArray(d.topics) ? d.topics : [],
       size: d.size || 0,
-      isArchived: Boolean(d.archived),
-      isFork: Boolean(d.fork),
       structureTree: structureTree,
       techStack: techStack,
       docAvailability: docAvailability,
-      quickCommands: docInsights.commands,
-      readme: readmeRaw || `# ${d.name}\n\n${d.description || 'No README file available for this repository.'}`,
-      readmeSnippet: readmeRaw ? readmeRaw.substring(0, 2000) : '',
-      contributing: contributingRaw || 'No CONTRIBUTING.md file detected.',
-      codeOfConduct: codeOfConductRaw || 'No CODE_OF_CONDUCT.md file detected.',
-      security: securityRaw || 'No SECURITY.md file detected.',
+      quickCommands: quickCommands,
+      readme: readmeText || `# ${d.name}\n\n${d.description || 'No README file available.'}`,
+      readmeSnippet: readmeText ? readmeText.substring(0, 2000) : '',
       issues: issues,
-      pullRequests: pullRequests
+      pullRequests: pullRequests,
+      rateInfo: repoRes.rateInfo || null
     };
 
-    // Step 3: Run AI Architecture & Contributor Analysis based on retrieved facts
+    // Step 3: Run AI Architecture & Contributor Analysis
     const aiAnalysisResult = await this.generateAIAnalysis(repoData);
     repoData.aiAnalysis = aiAnalysisResult.analysis;
     repoData.aiSource = aiAnalysisResult.source;
 
-    // Cache the result
     const resultObj = {
       mode: 'Live GitHub Data',
-      data: repoData
+      data: repoData,
+      fromCache: false
     };
+
+    // Store in cache
     this.cache.set(cacheKey, { data: resultObj, timestamp: Date.now() });
 
     return resultObj;

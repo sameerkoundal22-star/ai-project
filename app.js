@@ -842,11 +842,16 @@ function setupUniversalSearch() {
 // =========================================
 // REPOSITORY ANALYZER & LIVE GITHUB INTELLIGENCE
 // =========================================
+let isAnalysisInProgress = false;
+
 function setupRepoAnalysis() {
   const btn = document.getElementById('btnAnalyzeMain');
   const input = document.getElementById('repoUrlInput');
   const btnClear = document.getElementById('btnClearRepoInput');
   const btnCopyCommands = document.getElementById('btnCopyQuickCommands');
+  const btnOpenSettings = document.getElementById('btnOpenSettingsFromRateLimit');
+  const btnRetry = document.getElementById('btnRetryRepoAnalysis');
+  const btnDismiss = document.getElementById('btnDismissRateLimit');
 
   if (btnClear && input) {
     btnClear.addEventListener('click', () => {
@@ -864,6 +869,26 @@ function setupRepoAnalysis() {
     });
   }
 
+  if (btnOpenSettings) {
+    btnOpenSettings.addEventListener('click', () => {
+      const modal = document.getElementById('configModal');
+      if (modal) modal.classList.add('open');
+    });
+  }
+
+  if (btnRetry && input) {
+    btnRetry.addEventListener('click', () => {
+      analyzeRepository(input.value.trim());
+    });
+  }
+
+  if (btnDismiss) {
+    btnDismiss.addEventListener('click', () => {
+      const banner = document.getElementById('repoRateLimitBanner');
+      if (banner) banner.style.display = 'none';
+    });
+  }
+
   if (btn && input) {
     btn.addEventListener('click', () => {
       analyzeRepository(input.value.trim());
@@ -878,7 +903,7 @@ function setupRepoAnalysis() {
   }
 }
 
-// Clean and normalize repository input into { owner, repo }
+// Clean and normalize repository input into { owner, repo, slug }
 function normalizeRepoInput(raw) {
   if (!raw || typeof raw !== 'string') return null;
   let clean = raw.trim();
@@ -892,10 +917,13 @@ function normalizeRepoInput(raw) {
     'react': 'facebook/react',
     'vscode': 'microsoft/vscode',
     'tensorflow': 'tensorflow/tensorflow',
+    'fastapi': 'fastapi/fastapi',
     'vue': 'vuejs/core',
     'nextjs': 'vercel/next.js',
     'next.js': 'vercel/next.js',
-    'express': 'expressjs/express'
+    'express': 'expressjs/express',
+    'kubernetes': 'kubernetes/kubernetes',
+    'linux': 'torvalds/linux'
   };
 
   if (ALIASES[clean.toLowerCase()]) {
@@ -914,7 +942,53 @@ function normalizeRepoInput(raw) {
   return null;
 }
 
+function showRateLimitUI(rateInfo, customMessage) {
+  const banner = document.getElementById('repoRateLimitBanner');
+  const titleEl = document.getElementById('repoRateLimitTitle');
+  const msgEl = document.getElementById('repoRateLimitMessage');
+  const remEl = document.getElementById('repoRateLimitRemaining');
+  const resetEl = document.getElementById('repoRateLimitResetTime');
+
+  if (!banner) return;
+
+  const rem = (rateInfo && typeof rateInfo.remaining === 'number') ? rateInfo.remaining : 0;
+  let resetTimeFormatted = 'In ~45 minutes';
+
+  if (rateInfo && rateInfo.reset) {
+    const resetDate = new Date(rateInfo.reset * 1000);
+    resetTimeFormatted = resetDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  }
+
+  if (remEl) remEl.textContent = rem;
+  if (resetEl) resetEl.textContent = resetTimeFormatted;
+
+  const hasConfiguredToken = Boolean(localStorage.getItem('opensource_github_token'));
+
+  if (titleEl) {
+    titleEl.textContent = hasConfiguredToken
+      ? 'GitHub API Rate Limit Reached (Authenticated Account)'
+      : 'GitHub API Rate Limit Reached (Unauthenticated Public Quota)';
+  }
+
+  if (msgEl) {
+    msgEl.textContent = customMessage || (hasConfiguredToken
+      ? 'Your configured GitHub Personal Access Token has reached its hourly quota.'
+      : 'The public unauthenticated GitHub REST API rate limit (60 requests/hr) for this network has been exhausted.');
+  }
+
+  banner.style.display = 'block';
+  switchTab('repo');
+}
+
+function hideRateLimitUI() {
+  const banner = document.getElementById('repoRateLimitBanner');
+  if (banner) banner.style.display = 'none';
+}
+
 async function analyzeRepository(repoSlugOrUrl) {
+  // Prevent duplicate concurrent requests (Rule 6 & 19)
+  if (isAnalysisInProgress) return;
+
   const btn = document.getElementById('btnAnalyzeMain');
   const btnText = btn ? btn.querySelector('.btn-text') : null;
   const btnSpinner = btn ? btn.querySelector('.btn-spinner') : null;
@@ -932,7 +1006,25 @@ async function analyzeRepository(repoSlugOrUrl) {
   const targetSlug = parsed.slug;
   const { owner, repo } = parsed;
 
-  // Set loading state & clear previous state
+  // Check client-side session cache to prevent duplicate request if already analyzed
+  const clientCacheKey = `github:repo:${targetSlug.toLowerCase()}`;
+  const cachedStr = sessionStorage.getItem(clientCacheKey);
+  if (cachedStr) {
+    try {
+      const cachedRepo = JSON.parse(cachedStr);
+      if (cachedRepo && cachedRepo.fullName) {
+        hideRateLimitUI();
+        currentRepo = cachedRepo;
+        updateRepoUI(currentRepo, 'Cached Session Data');
+        showToast(`Loaded ${currentRepo.fullName} (Cached)`);
+        switchTab('repo');
+        return;
+      }
+    } catch (e) {}
+  }
+
+  // Set loading state & guard
+  isAnalysisInProgress = true;
   if (btn) btn.disabled = true;
   if (btnText) btnText.textContent = 'Analyzing...';
   if (btnSpinner) btnSpinner.style.display = 'inline-block';
@@ -945,9 +1037,9 @@ async function analyzeRepository(repoSlugOrUrl) {
 
   updateProgress('Validating repository...', `Target: ${targetSlug}`);
 
-  // 1. First attempt: Dedicated Server GitHub Service Pipeline
+  // 1. First attempt: Dedicated Server GitHub Service Pipeline (Strict Request Budget)
   try {
-    updateProgress('Fetching GitHub metadata...', 'Connecting to GitHub REST API...');
+    updateProgress('Connecting to GitHub API...', 'Fetching repository metadata & structure...');
     const res = await fetch('/api/repo/analyze', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -956,39 +1048,60 @@ async function analyzeRepository(repoSlugOrUrl) {
 
     const data = await res.json();
     if (res.ok && data.success && data.data) {
-      updateProgress('Generating repository intelligence...', 'Synthesizing architecture and roadmap...');
+      hideRateLimitUI();
+      updateProgress('Synthesizing intelligence...', 'Constructing architectural breakdown...');
       currentRepo = data.data;
-      updateRepoUI(currentRepo, data.mode);
+
+      // Store in client sessionStorage cache
+      try {
+        sessionStorage.setItem(clientCacheKey, JSON.stringify(currentRepo));
+      } catch (e) {}
+
+      updateRepoUI(currentRepo, data.fromCache ? 'Live GitHub Data (Cached)' : data.mode);
       if (window.ClientMetrics) {
         window.ClientMetrics.recordRepoAnalysis(currentRepo.fullName || currentRepo.name);
       }
       showToast(`Successfully analyzed ${currentRepo.fullName || currentRepo.name}`);
       switchTab('repo');
       return;
+    } else if (data && data.isRateLimit) {
+      showRateLimitUI(data.rateInfo, data.error);
+      if (progressBox) progressBox.style.display = 'none';
+      return;
     } else if (data && data.error) {
-      // If server returned specific 404 or rate-limit message, display it cleanly
       showToast(data.error);
       if (progressBox) progressBox.style.display = 'none';
       return;
     }
   } catch (err) {
-    // Server route unavailable (e.g. static hosting on GitHub Pages). Proceed to Client-side direct pipeline.
+    // Server route unavailable (e.g. static GitHub Pages hosting). Fall back to Client-Side Optimized Direct GitHub fetch.
   }
 
-  // 2. Client-side Direct GitHub Pipeline (GitHub Pages Static Fallback)
+  // 2. Client-side Direct GitHub Pipeline (GitHub Pages Static Hosting)
   try {
-    updateProgress('Connecting to GitHub API...', 'Fetching repository metadata directly from GitHub...');
+    updateProgress('Connecting to GitHub REST API...', 'Direct browser request...');
     const ghToken = localStorage.getItem('opensource_github_token') || '';
     const headers = { 'Accept': 'application/vnd.github.v3+json' };
     if (ghToken) headers['Authorization'] = `Bearer ${ghToken}`;
 
     const repoRes = await fetch(`https://api.github.com/repos/${owner}/${repo}`, { headers });
     
-    if (repoRes.status === 404) {
+    // Inspect actual rate limit headers
+    const remHeader = repoRes.headers.get('x-ratelimit-remaining');
+    const resetHeader = repoRes.headers.get('x-ratelimit-reset');
+    const rateInfo = {
+      remaining: remHeader !== null ? parseInt(remHeader, 10) : null,
+      reset: resetHeader !== null ? parseInt(resetHeader, 10) : null
+    };
+
+    if (repoRes.status === 403 && (rateInfo.remaining === 0 || !repoRes.ok)) {
+      showRateLimitUI(rateInfo, 'GitHub API rate limit reached on direct request.');
+      return;
+    } else if (repoRes.status === 404) {
       showToast(`Repository "${targetSlug}" was not found on GitHub (404).`);
       return;
-    } else if (repoRes.status === 403) {
-      showToast('GitHub API rate limit reached. Add your GitHub Token in Settings to continue.');
+    } else if (repoRes.status === 401) {
+      showToast('GitHub token authentication failed (401). Please check the token in Settings.');
       return;
     } else if (!repoRes.ok) {
       showToast(`GitHub API error: ${repoRes.statusText || repoRes.status}`);
@@ -996,15 +1109,15 @@ async function analyzeRepository(repoSlugOrUrl) {
     }
 
     const d = await repoRes.json();
-    updateProgress('Reading repository structure & issues...', 'Inspecting default branch and open tickets...');
+    hideRateLimitUI();
+    updateProgress('Reading structure & issues...', 'Inspecting default branch and tickets...');
 
     const defaultBranch = d.default_branch || 'main';
 
-    // Parallel fetch contents, issues, pulls, and readme
-    const [treeRes, issuesRes, pullsRes, readmeRes] = await Promise.all([
+    // Low-budget parallel requests: only contents, issues, and readme (3 calls)
+    const [treeRes, issuesRes, readmeRes] = await Promise.all([
       fetch(`https://api.github.com/repos/${owner}/${repo}/contents?ref=${defaultBranch}`, { headers }).catch(() => null),
-      fetch(`https://api.github.com/repos/${owner}/${repo}/issues?state=open&per_page=15&sort=updated`, { headers }).catch(() => null),
-      fetch(`https://api.github.com/repos/${owner}/${repo}/pulls?state=open&per_page=10&sort=updated`, { headers }).catch(() => null),
+      fetch(`https://api.github.com/repos/${owner}/${repo}/issues?state=open&per_page=10&sort=updated`, { headers }).catch(() => null),
       fetch(`https://api.github.com/repos/${owner}/${repo}/readme`, { headers }).catch(() => null)
     ]);
 
@@ -1026,45 +1139,38 @@ async function analyzeRepository(repoSlugOrUrl) {
     }
 
     const issues = [];
+    const pullRequests = [];
     if (issuesRes && issuesRes.ok) {
       const issData = await issuesRes.json();
       if (Array.isArray(issData)) {
-        issData.filter(i => !i.pull_request).forEach(i => {
+        issData.forEach(i => {
           const labels = (i.labels || []).map(l => (typeof l === 'object' ? l.name : l));
           const isBeginner = labels.some(l => /good first|beginner|easy|help wanted|starter/i.test(l));
-          issues.push({
-            id: i.id,
-            number: i.number,
-            title: i.title,
-            labels,
-            author: i.user?.login || 'contributor',
-            authorAvatar: i.user?.avatar_url || null,
-            comments: i.comments || 0,
-            html_url: i.html_url,
-            created_at: i.created_at,
-            updated_at: i.updated_at,
-            state: i.state,
-            difficulty: isBeginner ? 'Beginner' : 'Intermediate'
-          });
-        });
-      }
-    }
-
-    const pullRequests = [];
-    if (pullsRes && pullsRes.ok) {
-      const prData = await pullsRes.json();
-      if (Array.isArray(prData)) {
-        prData.forEach(p => {
-          pullRequests.push({
-            number: p.number,
-            title: p.title,
-            author: p.user?.login || 'contributor',
-            authorAvatar: p.user?.avatar_url || null,
-            created_at: p.created_at,
-            updated_at: p.updated_at,
-            html_url: p.html_url,
-            state: p.state
-          });
+          if (i.pull_request) {
+            pullRequests.push({
+              number: i.number,
+              title: i.title,
+              author: i.user?.login || 'contributor',
+              created_at: i.created_at,
+              updated_at: i.updated_at,
+              html_url: i.html_url,
+              state: i.state
+            });
+          } else {
+            issues.push({
+              id: i.id,
+              number: i.number,
+              title: i.title,
+              labels,
+              author: i.user?.login || 'contributor',
+              comments: i.comments || 0,
+              html_url: i.html_url,
+              created_at: i.created_at,
+              updated_at: i.updated_at,
+              state: i.state,
+              difficulty: isBeginner ? 'Beginner' : 'Intermediate'
+            });
+          }
         });
       }
     }
@@ -1093,7 +1199,7 @@ async function analyzeRepository(repoSlugOrUrl) {
       if (n === 'pom.xml') detectedTech.add('Java Maven');
     });
 
-    const dirs = structureTree.filter(s => s.type === 'dir').map(d => d.name);
+    const dirs = structureTree.filter(s => s.type === 'dir').map(dir => dir.name);
 
     currentRepo = {
       name: d.name,
@@ -1145,6 +1251,11 @@ async function analyzeRepository(repoSlugOrUrl) {
       aiSource: 'Client-Side Analysis Engine'
     };
 
+    // Store in client sessionStorage
+    try {
+      sessionStorage.setItem(clientCacheKey, JSON.stringify(currentRepo));
+    } catch (e) {}
+
     updateRepoUI(currentRepo, 'Live GitHub Client API');
     if (window.ClientMetrics) {
       window.ClientMetrics.recordRepoAnalysis(currentRepo.fullName || currentRepo.name);
@@ -1154,6 +1265,7 @@ async function analyzeRepository(repoSlugOrUrl) {
   } catch (clientErr) {
     showToast('Network error: Unable to contact GitHub API. Please check your internet connection.');
   } finally {
+    isAnalysisInProgress = false;
     if (btn) btn.disabled = false;
     if (btnText) btnText.textContent = 'Analyze Repository';
     if (btnSpinner) btnSpinner.style.display = 'none';
