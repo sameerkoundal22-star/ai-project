@@ -134,11 +134,26 @@ const CLIENT_KNOWLEDGE = {
     };
   },
 
-  // Senior Engineering AI Mentor Responses
+  // Universal AI Assistant & Engineering Mentor Engine
   chat(message, repo) {
     const q = (message || '').toLowerCase().trim();
     const repoName = repo ? (repo.fullName || repo.name) : 'facebook/react';
     const isReact = repoName.includes('react');
+
+    // 1. Conversational greetings
+    if (/^(hi|hello|hey|greetings|good morning|good afternoon|good evening|how are you|who are you)[!?,.]*$/i.test(q)) {
+      return `Hello! 👋 I am your **Open Source Chatbot AI Assistant**.\n\nI am a general-purpose AI assistant with deep expertise in software engineering, programming (Python, JavaScript, C++, Go, Rust, Java), debugging, GitHub workflows, architecture, mathematics, science, writing, and open-source contribution.\n\nHow can I help you today?`;
+    }
+
+    // 2. Mathematical & Science questions
+    if (/\b(math|calculate|integral|derivative|formula|physics|chemistry|biology|astronomy|equation)\b/i.test(q)) {
+      return `### 🔬 Scientific & Mathematical Guidance on "${message}"\n\n### Core Principle\nWhen tackling scientific or mathematical problems, break them down step-by-step:\n\n1. **Identify Given Variables & Constraints:** Define all input parameters clearly.\n2. **State Governing Formula:** Apply the fundamental formula or scientific theorem.\n3. **Execute Calculations Step-by-Step:** Solve incrementally to prevent algebraic or unit conversion mistakes.\n4. **Verify Result:** Check dimensions, units, and boundary conditions.\n\nFeel free to provide the exact equation or problem statement for a complete step-by-step derivation!`;
+    }
+
+    // 3. Writing, Summary & Translation
+    if (/\b(write|draft|essay|email|summarize|translate|resume|cover letter)\b/i.test(q)) {
+      return `### ✍️ Professional Writing & Communication Support\n\nRegarding: **"${message}"**\n\n* **Clarity & Structure:** Maintain clear headings, concise paragraphs, and active voice.\n* **Tone Adjustment:** Formatted to match your target audience (formal, professional, casual, or academic).\n* **Actionable Next Step:** Share your draft or bullet points, and I will refine, format, or summarize it for you immediately.`;
+    }
 
     if (q.includes('how can i contribute') || q.includes('how to contribute') || q.includes('start contributing') || q.includes('guidelines')) {
       return `### 🚀 Step-by-Step Production Contribution Guide for **${repoName}**\n\nWelcome to open source! Here is the precise roadmap followed by senior engineers when contributing to **${repoName}**:\n\n---\n\n#### 1. Fork & Setup Upstream\n1. Click **Fork** on the top-right of [GitHub](https://github.com/${repoName}).\n2. Clone your personal fork to your machine:\n\`\`\`bash\ngit clone https://github.com/YOUR_USERNAME/${repo ? repo.name : 'repo'}.git\ncd ${repo ? repo.name : 'repo'}\n\`\`\`\n3. Configure the original repository as **upstream**:\n\`\`\`bash\ngit remote add upstream https://github.com/${repoName}.git\ngit fetch upstream\n\`\`\`\n\n#### 2. Install Dependencies & Verify Environment\n\`\`\`bash\n${isReact ? 'yarn install && yarn test' : 'npm install && npm test'}\n\`\`\`\n> *Ensure tests pass cleanly locally before making any code modifications.*\n\n#### 3. Select an Issue Before Coding\n- Navigate to the **Repository** or **Issue Triage** tab in this dashboard.\n- Look for issues labeled \`good first issue\`, \`help wanted\`, or \`docs\`.\n- Comment on the issue: *"Hi maintainers, I would love to work on this! Please assign this to me."*\n\n#### 4. Create an Atomic Feature Branch\n\`\`\`bash\ngit checkout -b fix/issue-1234-brief-summary\n\`\`\`\n\n#### 5. Verify & Submit Your Pull Request\n- Run linter: \`${isReact ? 'yarn lint' : 'npm run lint'}\`\n- Commit cleanly using Conventional Commits: \`git commit -m "fix(core): add null check for unmounted ref"\`\n- Push to your fork: \`git push -u origin fix/issue-1234-brief-summary\`\n- Open PR on GitHub with before/after screenshots and link the issue using \`Fixes #1234\`.`;
