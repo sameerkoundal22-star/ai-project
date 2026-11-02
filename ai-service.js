@@ -2,6 +2,7 @@
 const https = require('https');
 const { UNIVERSAL_AI_SYSTEM_INSTRUCTION } = require('./ai-system-prompt');
 const offlineAIEngine = require('./offline-ai-engine');
+const codeReviewEngine = require('./code-review-engine');
 
 // Knowledge base of popular open-source projects for zero-latency queries
 // Project knowledge guide templates (no mock counters or metrics)
@@ -253,73 +254,77 @@ class AIService {
     };
   }
 
-  // Code Review Analyzer
+  // Senior Code Review Analyzer
   async reviewCode({ language, code, description = '' }) {
+    if (!code || !code.trim()) {
+      return {
+        review: codeReviewEngine.analyzeCode('', language, description),
+        mode: 'Direct Analysis'
+      };
+    }
+
     if (this.isConfigured()) {
-      const prompt = `Language: ${language}\nCode:\n${code}\nContext: ${description}`;
-      const res = await this.generateText(prompt, 'Return JSON with score, summary, issues (severity, category, explanation), suggestions, improvedCode');
-      if (res) {
-        try {
+      const systemPrompt = `You are a Senior Principal Software Engineer performing a rigorous, honest, and constructive code review.
+CRITICAL RULES:
+1. NEVER automatically give 10/10. The score MUST reflect actual findings. A score of 10/10 is rare and only for flawless, production-ready code.
+2. If code contains bugs, edge-case failures (e.g. find_largest returning 0 for negative numbers), security risks (SQL injection, unsafe JWT decode), unhandled errors, or bad practices, deductions MUST be applied.
+3. Severe vulnerabilities (SQL injection, RCE, buffer overflow) must clamp the overall score below 5.0.
+4. Output MUST be valid JSON matching this exact structure:
+{
+  "score": 6.8,
+  "language": "${language || 'auto'}",
+  "breakdown": {
+    "correctness": 6.0,
+    "security": 9.0,
+    "performance": 8.0,
+    "maintainability": 7.0,
+    "readability": 8.0,
+    "errorHandling": 5.0
+  },
+  "summary": "Executive summary of code quality...",
+  "positiveAspects": ["Point 1", "Point 2"],
+  "problemsFound": [
+    {
+      "severity": "High",
+      "category": "Correctness",
+      "location": "Line X - functionName()",
+      "problem": "Exact problem explanation",
+      "whyItMatters": "Impact and consequence",
+      "howToImprove": "Clear actionable instruction",
+      "exampleFix": "Corrected code snippet"
+    }
+  ],
+  "securityFindings": "Honest assessment of security",
+  "performanceNotes": "Complexity analysis (e.g. O(n)) and bottlenecks",
+  "maintainabilityNotes": "Architecture and refactoring suggestions",
+  "recommendedImprovements": ["P1: ...", "P2: ..."],
+  "suggestedTests": [
+    { "name": "Test case title", "input": "...", "expected": "...", "notes": "..." }
+  ],
+  "improvedCode": "Complete, working, fixed version of the code that preserves original purpose"
+}`;
+
+      const userPrompt = `Language: ${language || 'auto'}\nContext: ${description || 'None provided'}\n\nCode:\n${code}`;
+
+      try {
+        const res = await this.generateText(userPrompt, systemPrompt);
+        if (res) {
           const clean = res.replace(/```json/g, '').replace(/```/g, '').trim();
-          return { review: JSON.parse(clean), mode: 'Live AI (Gemini)' };
-        } catch (e) {}
+          const parsed = JSON.parse(clean);
+          if (parsed && typeof parsed.score === 'number') {
+            return { review: parsed, mode: 'Live AI (Gemini)' };
+          }
+        }
+      } catch (e) {
+        // Fallback to static engine
       }
     }
 
-    let score = 8;
-    const issues = [];
-    const suggestions = [];
-
-    if (code.includes('var ')) {
-      issues.push({
-        severity: 'Medium',
-        category: 'Maintainability',
-        explanation: 'Replace "var" with "const" or "let" to avoid variable hoisting.'
-      });
-      suggestions.push('Use "const" for variables that are not reassigned.');
-      score -= 1;
-    }
-
-    if (code.includes('eval(') || (code.includes('SELECT *') && code.includes('+'))) {
-      issues.push({
-        severity: 'High',
-        category: 'Security',
-        explanation: 'Potential injection vulnerability detected in dynamic statement execution.'
-      });
-      suggestions.push('Use parameterized inputs and avoid evaluating raw strings.');
-      score -= 3;
-    }
-
-    if (!code.includes('try') && (code.includes('fetch(') || code.includes('async') || code.includes('await'))) {
-      issues.push({
-        severity: 'Medium',
-        category: 'Bug Risk',
-        explanation: 'Asynchronous calls should be guarded with try/catch exception handlers.'
-      });
-      suggestions.push('Add try/catch blocks around asynchronous promises.');
-      score -= 1;
-    }
-
-    if (issues.length === 0) {
-      issues.push({
-        severity: 'Info',
-        category: 'Code Quality',
-        explanation: 'Code is cleanly structured and conforms to standard idioms.'
-      });
-      suggestions.push('Add comprehensive unit tests for boundary conditions.');
-    }
-
-    let improved = code.replace(/var /g, 'const ');
-
+    // High-fidelity Static Senior Review Engine
+    const reviewResult = codeReviewEngine.analyzeCode(code, language, description);
     return {
-      review: {
-        score: Math.max(4, Math.min(10, score)),
-        summary: `Analyzed ${language || 'source'} snippet: identified ${issues.length} review item(s). Overall architecture is solid.`,
-        issues,
-        suggestions,
-        improvedCode: improved
-      },
-      mode: 'AI Engine Mode'
+      review: reviewResult,
+      mode: 'Senior Code Review Engine'
     };
   }
 
