@@ -1721,29 +1721,67 @@ function setupChat() {
 }
 
 // =========================================
-// ISSUE TRIAGE & ANALYSIS
+// ISSUE TRIAGE & ANALYSIS (EVIDENCE-BASED ENGINE)
 // =========================================
+let currentTriageReport = null;
+let isTriaging = false;
+
 function setupTriage() {
   const select = document.getElementById('triageIssueSelect');
   const titleInput = document.getElementById('triageTitle');
   const descInput = document.getElementById('triageDesc');
   const btnRun = document.getElementById('btnRunTriage');
   const btnCopy = document.getElementById('btnCopyTriage');
+  const btnDownload = document.getElementById('btnDownloadTriageReport');
+  const btnAnalyzeAgain = document.getElementById('btnAnalyzeAgainTriage');
   const btnClearTriage = document.getElementById('btnClearTriageForm');
+
+  const progressBox = document.getElementById('triageProgressBox');
+  const progressStep = document.getElementById('triageProgressStep');
+  const progressSub = document.getElementById('triageProgressSub');
+  const errorBanner = document.getElementById('triageErrorBanner');
+  const errorMessage = document.getElementById('triageErrorMessage');
+  const emptyState = document.getElementById('triageEmptyState');
+  const detailsEl = document.getElementById('triageDetails');
+
+  function updateTriageProgress(step, sub) {
+    if (progressBox) progressBox.style.display = 'block';
+    if (progressStep) progressStep.textContent = step;
+    if (progressSub) progressSub.textContent = sub;
+  }
+
+  function hideTriageProgress() {
+    if (progressBox) progressBox.style.display = 'none';
+  }
+
+  function showTriageError(msg) {
+    hideTriageProgress();
+    if (errorBanner) {
+      errorBanner.style.display = 'block';
+      if (errorMessage) errorMessage.textContent = msg;
+    }
+    if (detailsEl) detailsEl.style.display = 'none';
+  }
+
+  function hideTriageError() {
+    if (errorBanner) errorBanner.style.display = 'none';
+  }
 
   if (btnClearTriage) {
     btnClearTriage.addEventListener('click', () => {
       if (titleInput) titleInput.value = '';
       if (descInput) descInput.value = '';
       if (select) select.value = '';
-      const summary = document.getElementById('triageSummary');
-      if (summary) summary.textContent = 'Select an issue or paste title and description on the left to generate an automated triage analysis.';
-      const area = document.getElementById('triageAffectedArea');
-      if (area) area.textContent = 'Awaiting input analysis...';
+      hideTriageError();
+      hideTriageProgress();
+      currentTriageReport = null;
+      if (emptyState) emptyState.style.display = 'block';
+      if (detailsEl) detailsEl.style.display = 'none';
+      if (btnCopy) btnCopy.style.display = 'none';
+      if (btnDownload) btnDownload.style.display = 'none';
+      if (btnAnalyzeAgain) btnAnalyzeAgain.style.display = 'none';
     });
   }
-
-  if (!btnRun) return;
 
   if (select) {
     select.addEventListener('change', () => {
@@ -1751,97 +1789,368 @@ function setupTriage() {
       if (!issueId || !currentRepo?.issues) return;
       const issue = currentRepo.issues.find(i => (i.id == issueId || i.number == issueId));
       if (issue) {
-        titleInput.value = issue.title;
-        descInput.value = `Issue #${issue.number || issue.id} reported in ${currentRepo.name}. Labels: ${(issue.labels || []).join(', ')}. Community is seeking triage and resolution.`;
+        titleInput.value = issue.title || '';
+        const labelsStr = (issue.labels || []).join(', ');
+        descInput.value = issue.body || `Issue #${issue.number || issue.id} opened by @${issue.author || 'contributor'} in ${currentRepo.fullName || currentRepo.name}.\nState: ${issue.state || 'open'}\nLabels: ${labelsStr || 'None'}\nComments: ${issue.comments || 0}\nGitHub URL: ${issue.html_url || ''}`;
       }
     });
   }
 
-  btnRun.addEventListener('click', async () => {
+  async function executeTriage() {
+    if (isTriaging) return; // Prevent duplicate requests
+
     const title = titleInput ? titleInput.value.trim() : '';
     const description = descInput ? descInput.value.trim() : '';
 
     if (!title && !description) {
-      showToast('Please provide an issue title or description.');
+      showToast('Please enter an issue title or description before starting the analysis.');
+      showTriageError('Please enter an issue title or description before starting the analysis.');
       return;
     }
 
-    btnRun.textContent = 'Triaging Issue...';
-    btnRun.disabled = true;
+    isTriaging = true;
+    hideTriageError();
+    if (emptyState) emptyState.style.display = 'none';
+    if (btnRun) {
+      btnRun.disabled = true;
+      btnRun.textContent = 'Triaging Issue...';
+    }
 
-    if (!IS_STATIC_HOST) {
-      try {
+    updateTriageProgress('Analyzing issue...', 'Understanding error signature & syntax...');
+
+    // Extract active GitHub issue metadata if an issue was selected
+    let selectedIssueMeta = null;
+    if (select && select.value && currentRepo?.issues) {
+      const found = currentRepo.issues.find(i => (i.id == select.value || i.number == select.value));
+      if (found) {
+        selectedIssueMeta = {
+          number: found.number,
+          id: found.id,
+          author: found.author,
+          labels: found.labels,
+          comments: found.comments,
+          state: found.state,
+          html_url: found.html_url
+        };
+      }
+    }
+
+    try {
+      // 1. Try Server API if dynamic backend is available
+      if (!IS_STATIC_HOST) {
+        updateTriageProgress('Classifying issue...', 'Evaluating severity and priority...');
         const res = await safeApiFetch('/api/triage', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             title,
             description,
-            repoName: currentRepo ? (currentRepo.fullName || currentRepo.name) : ''
+            repoName: currentRepo ? (currentRepo.fullName || currentRepo.name) : '',
+            issueMeta: selectedIssueMeta
           })
         });
 
-        if (res.ok && res.data && res.data.success && res.data.triage) {
-          displayTriageResult(res.data.triage);
-          if (window.ClientMetrics) window.ClientMetrics.recordTriage(title, currentRepo?.fullName);
+        if (res.ok && res.data && res.data.success && res.data.triage && !res.data.triage.error) {
+          hideTriageProgress();
+          currentTriageReport = res.data.triage;
+          displayTriageResult(res.data.triage, res.data.mode || 'Server AI Pipeline');
+          if (window.ClientMetrics) {
+            window.ClientMetrics.recordTriage(title, currentRepo?.fullName);
+          }
+          showToast('Issue triage report generated!');
           return;
         }
-      } catch (e) {
-        // Fallback
-      } finally {
-        btnRun.textContent = 'Analyze & Triage Issue';
-        btnRun.disabled = false;
       }
-    } else {
-      btnRun.textContent = 'Analyze & Triage Issue';
-      btnRun.disabled = false;
-    }
 
-    if (window.CLIENT_KNOWLEDGE) {
-      const fallbackTriage = window.CLIENT_KNOWLEDGE.triage(title, description, currentRepo?.name);
-      displayTriageResult(fallbackTriage);
+      // 2. Client-Side Comprehensive Issue Triage Engine (Static / GitHub Pages Mode)
+      updateTriageProgress('Identifying possible root cause...', 'Tracing stack frames & reproduction steps...');
+      await new Promise(r => setTimeout(r, 200));
+
+      updateTriageProgress('Generating recommended fix...', 'Constructing verification test cases...');
+      let triageResult = null;
+
+      if (window.IssueTriageEngine) {
+        triageResult = window.IssueTriageEngine.triageIssue({
+          title,
+          description,
+          repoContext: currentRepo,
+          issueMeta: selectedIssueMeta
+        });
+      } else if (window.CLIENT_KNOWLEDGE) {
+        triageResult = window.CLIENT_KNOWLEDGE.triage(title, description, currentRepo?.name);
+      }
+
+      if (!triageResult || triageResult.error) {
+        throw new Error(triageResult?.error || 'Issue analysis failed. The AI service could not analyze this issue.');
+      }
+
+      hideTriageProgress();
+      currentTriageReport = triageResult;
+      displayTriageResult(triageResult, 'Issue Triage Diagnostic Engine');
+
+      if (window.ClientMetrics) {
+        window.ClientMetrics.recordTriage(title, currentRepo?.fullName);
+      }
       showToast('Issue triage report generated!');
-    }
-  });
 
+    } catch (err) {
+      hideTriageProgress();
+      showTriageError(err.message || 'Issue analysis failed. The AI service could not analyze this issue. Please check the AI configuration and try again.');
+    } finally {
+      isTriaging = false;
+      if (btnRun) {
+        btnRun.disabled = false;
+        btnRun.textContent = 'Analyze & Triage Issue';
+      }
+    }
+  }
+
+  if (btnRun) {
+    btnRun.addEventListener('click', executeTriage);
+  }
+
+  if (btnAnalyzeAgain) {
+    btnAnalyzeAgain.addEventListener('click', executeTriage);
+  }
+
+  // Copy Report Action (Clean Markdown)
   if (btnCopy) {
     btnCopy.addEventListener('click', () => {
-      const summary = document.getElementById('triageSummary')?.textContent || '';
-      const area = document.getElementById('triageAffectedArea')?.textContent || '';
-      const text = `Issue Triage Report:\nSummary: ${summary}\nAffected Area: ${area}`;
+      if (!currentTriageReport) return;
+      let text = '';
+      if (window.IssueTriageEngine && window.IssueTriageEngine.formatReportAsMarkdown) {
+        text = window.IssueTriageEngine.formatReportAsMarkdown(currentTriageReport);
+      } else {
+        text = `Issue Triage Report\n\nTitle: ${currentTriageReport.issueTitle || 'N/A'}\nType: ${currentTriageReport.primaryType || 'Bug'}\nSeverity: ${currentTriageReport.severity}\nPriority: ${currentTriageReport.priority}\nSummary: ${currentTriageReport.summary}`;
+      }
       navigator.clipboard.writeText(text).then(() => {
         showToast('Triage report copied to clipboard!');
+      }).catch(() => {
+        showToast('Failed to copy report.');
       });
+    });
+  }
+
+  // Download Report Action (.md File)
+  if (btnDownload) {
+    btnDownload.addEventListener('click', () => {
+      if (!currentTriageReport) return;
+      let text = '';
+      if (window.IssueTriageEngine && window.IssueTriageEngine.formatReportAsMarkdown) {
+        text = window.IssueTriageEngine.formatReportAsMarkdown(currentTriageReport);
+      } else {
+        text = `Issue Triage Report\n\nTitle: ${currentTriageReport.issueTitle || 'N/A'}\nType: ${currentTriageReport.primaryType || 'Bug'}\nSeverity: ${currentTriageReport.severity}\nPriority: ${currentTriageReport.priority}\nSummary: ${currentTriageReport.summary}`;
+      }
+
+      const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const safeTitle = (currentTriageReport.issueTitle || 'issue-triage').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 30);
+      a.href = url;
+      a.download = `triage-report-${safeTitle}-${Date.now()}.md`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast('Triage report downloaded!');
     });
   }
 }
 
-function displayTriageResult(triage) {
-  const priorityEl = document.getElementById('triagePriority');
-  const typeEl = document.getElementById('triageType');
-  const beginnerEl = document.getElementById('triageBeginner');
+function displayTriageResult(triage, modeLabel = 'Evidence-Based Diagnostic Engine') {
+  if (!triage) return;
+
+  const emptyState = document.getElementById('triageEmptyState');
+  const detailsEl = document.getElementById('triageDetails');
+  const modeSpan = document.getElementById('triageReportMode');
+  const btnCopy = document.getElementById('btnCopyTriage');
+  const btnDownload = document.getElementById('btnDownloadTriageReport');
+  const btnAnalyzeAgain = document.getElementById('btnAnalyzeAgainTriage');
+
+  if (emptyState) emptyState.style.display = 'none';
+  if (detailsEl) detailsEl.style.display = 'block';
+  if (modeSpan) modeSpan.textContent = `✦ ${modeLabel}`;
+  if (btnCopy) btnCopy.style.display = 'inline-flex';
+  if (btnDownload) btnDownload.style.display = 'inline-flex';
+  if (btnAnalyzeAgain) btnAnalyzeAgain.style.display = 'inline-flex';
+
+  // 1. KPI Badges
+  const sevEl = document.getElementById('triageSeverityVal');
+  const prioEl = document.getElementById('triagePriorityVal');
+  const typeEl = document.getElementById('triageTypeVal');
+  const confEl = document.getElementById('triageConfidenceVal');
+  const diffEl = document.getElementById('triageDifficultyVal');
+  const begEl = document.getElementById('triageBeginnerVal');
+
+  const severity = triage.severity || 'Medium';
+  const priority = triage.priority || 'P2';
+  const primaryType = triage.primaryType || triage.issueType || 'Bug';
+
+  if (sevEl) {
+    sevEl.textContent = severity;
+    sevEl.style.color = severity === 'Critical' ? '#EF4444' : (severity === 'High' ? '#F59E0B' : (severity === 'Low' ? '#22C55E' : '#3B82F6'));
+  }
+  if (prioEl) {
+    prioEl.textContent = priority;
+    prioEl.style.color = priority === 'P0' ? '#EF4444' : (priority === 'P1' ? '#F59E0B' : '#818CF8');
+  }
+  if (typeEl) {
+    typeEl.textContent = primaryType + (triage.secondaryType ? ` / ${triage.secondaryType}` : '');
+  }
+  if (confEl) {
+    confEl.textContent = triage.confidence || 'Medium';
+    confEl.style.color = triage.confidence === 'High' ? '#22C55E' : (triage.confidence === 'Low' ? '#F59E0B' : '#3B82F6');
+  }
+  if (diffEl) {
+    diffEl.textContent = triage.difficulty || 'Medium';
+  }
+  if (begEl) {
+    const isBeg = triage.beginnerFriendly === 'Yes' || triage.difficulty === 'Beginner';
+    begEl.textContent = triage.beginnerFriendly || (isBeg ? 'Yes' : 'No');
+    begEl.style.color = isBeg ? '#22C55E' : (triage.beginnerFriendly === 'Partially' ? '#F59E0B' : '#EF4444');
+  }
+
+  // 2. Limited Information Warning Banner
+  const limitedBanner = document.getElementById('triageLimitedInfoBanner');
+  if (limitedBanner) {
+    limitedBanner.style.display = triage.isLimitedInfo ? 'block' : 'none';
+  }
+
+  // 3. Executive Summary
   const summaryEl = document.getElementById('triageSummary');
+  if (summaryEl) {
+    summaryEl.textContent = triage.summary || 'Summary not available.';
+  }
+
+  // 4. Affected Component
   const affectedEl = document.getElementById('triageAffectedArea');
-  const stepsList = document.getElementById('triageSteps');
-
-  if (priorityEl) {
-    priorityEl.textContent = (triage.priority || 'MEDIUM').toUpperCase() + ' PRIORITY';
-    priorityEl.className = `badge-tag ${(triage.priority || 'medium').toLowerCase()}`;
+  if (affectedEl) {
+    affectedEl.textContent = triage.affectedComponent || triage.possibleAffectedArea || 'Application Core';
   }
-  if (typeEl) typeEl.textContent = triage.issueType || 'Bug';
-  if (beginnerEl) {
-    beginnerEl.textContent = `Beginner Friendly: ${triage.difficulty === 'Beginner' ? 'Yes' : 'No'}`;
-    beginnerEl.className = `badge-tag ${triage.difficulty === 'Beginner' ? 'low' : 'medium'}`;
-  }
-  if (summaryEl) summaryEl.textContent = triage.summary;
-  if (affectedEl) affectedEl.textContent = triage.possibleAffectedArea || triage.suggestedFix;
 
-  if (stepsList && triage.suggestedNextSteps) {
-    stepsList.innerHTML = '';
-    triage.suggestedNextSteps.forEach(s => {
+  // 5. Root Cause & Status
+  const rootCauseBadge = document.getElementById('triageRootCauseBadge');
+  const rootCauseText = document.getElementById('triageRootCauseText');
+  const rc = triage.rootCause || {};
+  if (rootCauseBadge) {
+    const status = rc.status || 'Hypothesis';
+    rootCauseBadge.textContent = `Status: ${status}`;
+    rootCauseBadge.className = `badge-tag ${status.includes('Confirmed') ? 'low' : 'medium'}`;
+  }
+  if (rootCauseText) {
+    rootCauseText.textContent = rc.explanation || triage.possibleAffectedArea || 'Detailed root cause cannot be confirmed without source code access.';
+  }
+
+  // 6. Evidence List
+  const evidenceList = document.getElementById('triageEvidenceList');
+  if (evidenceList) {
+    evidenceList.innerHTML = '';
+    const evArr = Array.isArray(triage.evidence) && triage.evidence.length > 0
+      ? triage.evidence
+      : ['Derived from supplied issue title and description.'];
+    evArr.forEach(e => {
+      const li = document.createElement('li');
+      li.textContent = e;
+      evidenceList.appendChild(li);
+    });
+  }
+
+  // 7. Reproduction Steps
+  const reproList = document.getElementById('triageReproductionList');
+  if (reproList) {
+    reproList.innerHTML = '';
+    const steps = Array.isArray(triage.reproductionSteps) && triage.reproductionSteps.length > 0
+      ? triage.reproductionSteps
+      : ['Reproduction steps cannot be reliably determined from the provided information.'];
+    steps.forEach(s => {
       const li = document.createElement('li');
       li.textContent = s;
-      stepsList.appendChild(li);
+      reproList.appendChild(li);
+    });
+  }
+
+  // 8. Expected vs Actual Behavior
+  const expEl = document.getElementById('triageExpectedText');
+  const actEl = document.getElementById('triageActualText');
+  if (expEl) expEl.textContent = triage.expectedBehavior || 'Not explicitly provided in the issue.';
+  if (actEl) actEl.textContent = triage.actualBehavior || 'Not explicitly provided in the issue.';
+
+  // 9. Impact
+  const userImpEl = document.getElementById('triageUserImpact');
+  const techImpEl = document.getElementById('triageTechImpact');
+  const projImpEl = document.getElementById('triageProjectImpact');
+  const projRow = document.getElementById('triageProjectImpactRow');
+  const imp = triage.impact || {};
+
+  if (userImpEl) userImpEl.textContent = imp.user || 'Users experience workflow disruption.';
+  if (techImpEl) techImpEl.textContent = imp.technical || 'Feature defect in target component.';
+  if (projImpEl && imp.project) {
+    projImpEl.textContent = imp.project;
+    if (projRow) projRow.style.display = 'block';
+  } else if (projRow) {
+    projRow.style.display = 'none';
+  }
+
+  // 10. Recommended Fix & Alternative Approach
+  const fixContainer = document.getElementById('triageFixContainer');
+  if (fixContainer) {
+    const rawFix = triage.recommendedFix || triage.suggestedFix || 'Add defensive input validation.';
+    if (window.marked) {
+      fixContainer.innerHTML = window.marked.parse(rawFix);
+    } else {
+      fixContainer.innerHTML = `<pre style="white-space: pre-wrap; font-size: 0.82rem; background: var(--bg-secondary); padding: 8px; border-radius: 6px;">${escapeHTML(rawFix)}</pre>`;
+    }
+  }
+
+  const altBox = document.getElementById('triageAltFixContainer');
+  const altBody = document.getElementById('triageAltFixBody');
+  if (altBox && altBody) {
+    if (triage.alternativeFix) {
+      altBox.style.display = 'block';
+      if (window.marked) {
+        altBody.innerHTML = window.marked.parse(triage.alternativeFix);
+      } else {
+        altBody.innerHTML = escapeHTML(triage.alternativeFix);
+      }
+    } else {
+      altBox.style.display = 'none';
+    }
+  }
+
+  // 11. Target Tests & Edge Cases
+  const testList = document.getElementById('triageTestCasesList');
+  if (testList) {
+    testList.innerHTML = '';
+    const tests = Array.isArray(triage.testCases) ? triage.testCases : [];
+    tests.forEach(t => {
+      const li = document.createElement('li');
+      li.textContent = t;
+      testList.appendChild(li);
+    });
+  }
+
+  const edgeList = document.getElementById('triageEdgeCasesList');
+  if (edgeList) {
+    edgeList.innerHTML = '';
+    const edges = Array.isArray(triage.edgeCases) ? triage.edgeCases : [];
+    edges.forEach(e => {
+      const li = document.createElement('li');
+      li.textContent = e;
+      edgeList.appendChild(li);
+    });
+  }
+
+  // 12. Next Actions
+  const actionsList = document.getElementById('triageNextActionsList');
+  if (actionsList) {
+    actionsList.innerHTML = '';
+    const actions = Array.isArray(triage.nextActions) && triage.nextActions.length > 0
+      ? triage.nextActions
+      : (triage.suggestedNextSteps || ['Reproduce issue locally.', 'Submit patch with test.']);
+    actions.forEach(a => {
+      const li = document.createElement('li');
+      li.textContent = a;
+      actionsList.appendChild(li);
     });
   }
 }

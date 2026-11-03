@@ -202,10 +202,19 @@ const server = http.createServer(async (req, res) => {
   if (pathname === '/api/triage' && method === 'POST') {
     try {
       const body = await parseBody(req);
-      const { title, description, repoName } = body;
-      const result = await aiService.triageIssue({ title, description, repoName });
-      if (result && result.triage) {
-        metricsService.recordIssueTriage({ title, repoName, ...result.triage });
+      const { title, description, repoName, issueMeta } = body;
+      if (!title && !description) {
+        return sendJSON(res, 400, { success: false, error: 'Please enter an issue title or description before starting the analysis.' });
+      }
+      const result = await aiService.triageIssue({ title, description, repoName, issueMeta });
+      if (result && result.triage && !result.triage.error) {
+        metricsService.recordIssueTriage({
+          title,
+          repoName,
+          issueType: result.triage.primaryType || result.triage.issueType,
+          severity: result.triage.severity,
+          priority: result.triage.priority
+        });
       }
       return sendJSON(res, 200, {
         success: true,

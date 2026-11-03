@@ -101,46 +101,37 @@ const CLIENT_KNOWLEDGE = {
 
   // Issue Triage Intelligence
   triage(title, description, repoName) {
-    const text = (title + ' ' + description).toLowerCase();
-    let issueType = 'Bug';
-    let priority = 'Medium';
-    let difficulty = 'Intermediate';
-    let fixArea = 'Core Module';
-
-    if (text.includes('doc') || text.includes('typo') || text.includes('readme') || text.includes('anchor')) {
-      issueType = 'Documentation';
-      priority = 'Low';
-      difficulty = 'Beginner';
-      fixArea = 'Docs & Markdown Guides';
-    } else if (text.includes('crash') || text.includes('security') || text.includes('vulnerability') || text.includes('sql') || text.includes('rce')) {
-      issueType = 'Critical Security Flaw / System Crash';
-      priority = 'Critical';
-      difficulty = 'Advanced';
-      fixArea = 'Security & Core Runtime Boundary';
-    } else if (text.includes('slow') || text.includes('memory') || text.includes('leak') || text.includes('performance') || text.includes('latency')) {
-      issueType = 'Performance Bottleneck';
-      priority = 'High';
-      difficulty = 'Advanced';
-      fixArea = 'Scheduler & Concurrency Pipeline';
-    } else if (text.includes('feature') || text.includes('enhancement') || text.includes('support')) {
-      issueType = 'Feature Request';
-      priority = 'Medium';
-      difficulty = 'Intermediate';
-      fixArea = 'API Surface & Feature Flags';
+    if (typeof window !== 'undefined' && window.IssueTriageEngine) {
+      return window.IssueTriageEngine.triageIssue({
+        title,
+        description,
+        repoContext: repoName ? { fullName: repoName, name: repoName } : null
+      });
     }
-
+    const full = `${title} ${description}`.toLowerCase();
     return {
-      issueType,
-      priority,
-      difficulty,
-      summary: `Automated classification for ticket "${title}". Categorized as ${issueType} under ${priority} Priority. Recommended developer level: ${difficulty}.`,
-      possibleAffectedArea: `${fixArea} in ${repoName || 'the repository'}. Inspect call stack and regression test suites.`,
-      suggestedLabels: [issueType.toLowerCase().replace(/\s+/g, '-'), difficulty.toLowerCase(), 'community-triage'],
-      suggestedNextSteps: [
-        'Reproduce bug using minimal standalone code snippet in test harness.',
-        'Isolate commit regression via git bisect if reported after recent release.',
-        'Submit pull request accompanied by a targeted unit test preventing future regressions.'
-      ]
+      issueTitle: title,
+      primaryType: 'Bug',
+      severity: 'Medium',
+      priority: 'P2',
+      confidence: 'Medium',
+      confidenceReason: 'Basic heuristic triage.',
+      affectedComponent: 'Application Core',
+      rootCause: { status: 'Hypothesis', explanation: 'Requires source inspection.' },
+      evidence: [title],
+      reproductionSteps: ['Supply test case to reproduce.'],
+      expectedBehavior: 'Application functions as expected.',
+      actualBehavior: 'Failure observed.',
+      impact: { user: 'Workflow interrupted.', technical: 'Feature defect.' },
+      recommendedFix: 'Inspect module and add defensive validation.',
+      testCases: ['Verify nominal input.'],
+      edgeCases: ['Empty payload.'],
+      difficulty: 'Medium',
+      difficultyReason: 'Standard debugging task.',
+      beginnerFriendly: 'Partially',
+      beginnerReason: 'Depends on familiarity with repository.',
+      nextActions: ['Reproduce issue locally.'],
+      summary: `Triage evaluation for "${title}".`
     };
   }
 };

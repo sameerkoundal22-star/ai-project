@@ -727,11 +727,12 @@
         <div class="panel-header">
           <div class="panel-title-group">
             <h2>GitHub Issue Triage & Analyzer</h2>
-            <p>Automatically diagnose bug reports, classify severity, and synthesize reproduction steps.</p>
+            <p>Evidence-based diagnostic intelligence: classify severity, extract reproduction steps, trace root causes, and recommend verified fixes.</p>
           </div>
         </div>
 
         <div class="grid-2-col">
+          <!-- Left Column: Input Form -->
           <div class="card">
             <h3 class="card-title">Issue Details</h3>
             <div class="form-group">
@@ -742,49 +743,169 @@
             </div>
             <div class="form-group">
               <label>Issue Title</label>
-              <input type="text" id="triageTitle" class="form-control" placeholder="Enter issue title" autocomplete="off" autocapitalize="none" spellcheck="false" data-lpignore="true" data-form-type="other" value="">
+              <input type="text" id="triageTitle" class="form-control" placeholder="Enter issue title (e.g. Application crashes when calculating average of an empty list)" autocomplete="off" autocapitalize="none" spellcheck="false" data-lpignore="true" data-form-type="other" value="">
             </div>
             <div class="form-group">
-              <label>Issue Description / Error Logs</label>
-              <textarea id="triageDesc" class="form-control" rows="5" placeholder="Paste the issue description, stack trace, or observed behavior..." autocomplete="off" spellcheck="false" data-lpignore="true" data-form-type="other"></textarea>
+              <label>Issue Description, Error Logs or Stack Trace</label>
+              <textarea id="triageDesc" class="form-control" rows="8" placeholder="Paste the issue description, stack trace, error logs, or observed behavior..." autocomplete="off" spellcheck="false" data-lpignore="true" data-form-type="other"></textarea>
             </div>
             <div style="display: flex; gap: 10px;">
               <button class="btn btn-primary" id="btnRunTriage" style="flex: 1;">Analyze & Triage Issue</button>
               <button class="btn btn-secondary" id="btnClearTriageForm" type="button" style="padding: 0 16px;">Clear</button>
             </div>
+
+            <!-- Analysis Progress Box -->
+            <div id="triageProgressBox" style="display: none; margin-top: 14px; background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 8px; padding: 12px 14px;">
+              <div style="display: flex; align-items: center; gap: 8px; font-weight: 700; color: #818CF8; font-size: 0.85rem; margin-bottom: 4px;">
+                <div class="spinner" style="width: 14px; height: 14px; border: 2px solid rgba(129, 140, 248, 0.2); border-top-color: #818CF8; border-radius: 50%; animation: spin 0.8s linear infinite;"></div>
+                <span id="triageProgressStep">Analyzing issue...</span>
+              </div>
+              <div id="triageProgressSub" style="font-size: 0.78rem; color: var(--text-secondary);">Validating input statement...</div>
+            </div>
           </div>
 
+          <!-- Right Column: Professional Triage Report Card -->
           <div class="card" id="triageReportCard">
             <div class="card-header-flex">
-              <h3 class="card-title">AI Triage Assessment</h3>
-              <button class="btn btn-secondary btn-sm" id="btnCopyTriage">Copy Report</button>
+              <div>
+                <h3 class="card-title" style="margin: 0;">AI Issue Triage Report</h3>
+                <span id="triageReportMode" style="font-size: 0.72rem; color: #818CF8; font-weight: 700; text-transform: uppercase;">✦ Evidence-Based Triage</span>
+              </div>
+              <div style="display: flex; gap: 8px;">
+                <button class="btn btn-secondary btn-sm" id="btnAnalyzeAgainTriage" style="display: none;">Analyze Again</button>
+                <button class="btn btn-secondary btn-sm" id="btnDownloadTriageReport" style="display: none;">Download Report</button>
+                <button class="btn btn-secondary btn-sm" id="btnCopyTriage" style="display: none;">Copy Report</button>
+              </div>
             </div>
 
-            <div id="triageEmptyState" style="padding: 30px 16px; text-align: center; color: var(--text-muted);">
-              <div style="font-size: 1.8rem; margin-bottom: 8px; opacity: 0.7;">📋</div>
-              <h4 style="font-size: 0.95rem; font-weight: 700; color: var(--text-main); margin-bottom: 4px;">No issue analyzed yet</h4>
-              <p style="font-size: 0.84rem; max-width: 380px; margin: 0 auto; line-height: 1.5;">
-                Select an issue from the active repository or paste an issue title and description on the left, then click <strong>Analyze & Triage Issue</strong>.
+            <!-- Empty State -->
+            <div id="triageEmptyState" style="padding: 40px 16px; text-align: center; color: var(--text-muted);">
+              <div style="font-size: 2.2rem; margin-bottom: 10px; opacity: 0.7;">📋</div>
+              <h4 style="font-size: 1rem; font-weight: 700; color: var(--text-main); margin-bottom: 6px;">No issue analyzed yet</h4>
+              <p style="font-size: 0.85rem; max-width: 420px; margin: 0 auto; line-height: 1.5;">
+                Select an issue from an active repository or enter an issue title and description on the left, then click <strong>Analyze & Triage Issue</strong>.
               </p>
             </div>
 
-            <div id="triageDetails" style="display: none;">
-              <div style="display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap;" id="triageBadgesRow">
-                <span class="badge-tag medium" id="triagePriority">MEDIUM PRIORITY</span>
-                <span class="badge-tag medium" id="triageType">Bug</span>
-                <span class="badge-tag low" id="triageBeginner">Beginner Friendly: TBD</span>
+            <!-- Error State Banner -->
+            <div id="triageErrorBanner" style="display: none; background: rgba(220, 38, 38, 0.1); border: 1px solid rgba(220, 38, 38, 0.3); border-radius: 8px; padding: 14px; margin-top: 10px; color: #FCA5A5; font-size: 0.85rem;">
+              <strong style="color: #EF4444; display: block; margin-bottom: 4px;">Issue analysis failed</strong>
+              <span id="triageErrorMessage">Please check the issue inputs and try again.</span>
+            </div>
+
+            <!-- Full Comprehensive Report Body -->
+            <div id="triageDetails" style="display: none; margin-top: 14px; max-height: 600px; overflow-y: auto; padding-right: 6px;">
+              <!-- KPI Assessment Badges Grid -->
+              <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin-bottom: 16px;" id="triageKpiGrid">
+                <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 6px; padding: 8px; text-align: center;">
+                  <div style="font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Severity</div>
+                  <div id="triageSeverityVal" style="font-size: 0.92rem; font-weight: 800; margin-top: 2px;">Medium</div>
+                </div>
+                <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 6px; padding: 8px; text-align: center;">
+                  <div style="font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Priority</div>
+                  <div id="triagePriorityVal" style="font-size: 0.92rem; font-weight: 800; margin-top: 2px;">P2</div>
+                </div>
+                <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 6px; padding: 8px; text-align: center;">
+                  <div style="font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Primary Type</div>
+                  <div id="triageTypeVal" style="font-size: 0.92rem; font-weight: 800; margin-top: 2px;">Bug</div>
+                </div>
+                <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 6px; padding: 8px; text-align: center;">
+                  <div style="font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Confidence</div>
+                  <div id="triageConfidenceVal" style="font-size: 0.92rem; font-weight: 800; margin-top: 2px;">High</div>
+                </div>
+                <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 6px; padding: 8px; text-align: center;">
+                  <div style="font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Difficulty</div>
+                  <div id="triageDifficultyVal" style="font-size: 0.92rem; font-weight: 800; margin-top: 2px;">Easy</div>
+                </div>
+                <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 6px; padding: 8px; text-align: center;">
+                  <div style="font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase; font-weight: 700;">Beginner Friendly</div>
+                  <div id="triageBeginnerVal" style="font-size: 0.92rem; font-weight: 800; margin-top: 2px;">Yes</div>
+                </div>
               </div>
-              <div class="form-group">
-                <label>Executive Summary</label>
-                <p id="triageSummary" style="font-size: 0.88rem; line-height: 1.5; color: var(--text-secondary);"></p>
+
+              <!-- Limited Info Warning Banner (if only title provided) -->
+              <div id="triageLimitedInfoBanner" style="display: none; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 6px; padding: 10px 12px; margin-bottom: 14px; font-size: 0.8rem; color: #FBBF24;">
+                <strong>Limited information available.</strong> The analysis is based only on the issue title.
               </div>
-              <div class="form-group">
-                <label>Affected Component & Possible Cause</label>
-                <div id="triageAffectedArea" style="font-size: 0.85rem; padding: 10px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-main);"></div>
+
+              <!-- Report Sections -->
+              <div class="triage-section" style="margin-bottom: 14px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
+                <div style="font-size: 0.72rem; color: #818CF8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Executive Summary</div>
+                <p id="triageSummary" style="font-size: 0.85rem; line-height: 1.5; color: var(--text-secondary); margin: 0;"></p>
               </div>
-              <div class="form-group">
-                <label>Recommended Reproduction & Next Steps</label>
-                <ul id="triageSteps" style="padding-left: 20px; font-size: 0.85rem; color: var(--text-secondary); line-height: 1.6;"></ul>
+
+              <div class="triage-section" style="margin-bottom: 14px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
+                <div style="font-size: 0.72rem; color: #818CF8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Affected Component</div>
+                <div id="triageAffectedArea" style="font-size: 0.84rem; font-family: 'JetBrains Mono', monospace; padding: 8px 10px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-main);"></div>
+              </div>
+
+              <div class="triage-section" style="margin-bottom: 14px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                  <div style="font-size: 0.72rem; color: #818CF8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">Root Cause Analysis</div>
+                  <span id="triageRootCauseBadge" class="badge-tag medium" style="font-size: 0.68rem; padding: 2px 6px;">Status: Hypothesis</span>
+                </div>
+                <p id="triageRootCauseText" style="font-size: 0.85rem; line-height: 1.5; color: var(--text-secondary); margin: 0;"></p>
+              </div>
+
+              <div class="triage-section" style="margin-bottom: 14px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
+                <div style="font-size: 0.72rem; color: #818CF8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Evidence Derived from Issue</div>
+                <ul id="triageEvidenceList" style="padding-left: 18px; margin: 0; font-size: 0.82rem; color: var(--text-secondary); line-height: 1.5;"></ul>
+              </div>
+
+              <div class="triage-section" style="margin-bottom: 14px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
+                <div style="font-size: 0.72rem; color: #818CF8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Reproduction Steps</div>
+                <ol id="triageReproductionList" style="padding-left: 18px; margin: 0; font-size: 0.84rem; color: var(--text-secondary); line-height: 1.5;"></ol>
+              </div>
+
+              <div class="triage-section" style="margin-bottom: 14px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
+                <div style="font-size: 0.72rem; color: #818CF8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;">Expected vs Actual Behavior</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                  <div style="background: rgba(34, 197, 94, 0.08); border: 1px solid rgba(34, 197, 94, 0.25); border-radius: 6px; padding: 8px 10px;">
+                    <strong style="color: #22C55E; font-size: 0.72rem; text-transform: uppercase; display: block; margin-bottom: 2px;">Expected Behavior</strong>
+                    <span id="triageExpectedText" style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.4;"></span>
+                  </div>
+                  <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: 6px; padding: 8px 10px;">
+                    <strong style="color: #EF4444; font-size: 0.72rem; text-transform: uppercase; display: block; margin-bottom: 2px;">Actual Behavior</strong>
+                    <span id="triageActualText" style="font-size: 0.8rem; color: var(--text-secondary); line-height: 1.4;"></span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="triage-section" style="margin-bottom: 14px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
+                <div style="font-size: 0.72rem; color: #818CF8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;">User & Technical Impact</div>
+                <div style="font-size: 0.82rem; color: var(--text-secondary); line-height: 1.5;">
+                  <div><strong>User Impact:</strong> <span id="triageUserImpact"></span></div>
+                  <div style="margin-top: 4px;"><strong>Technical Impact:</strong> <span id="triageTechImpact"></span></div>
+                  <div id="triageProjectImpactRow" style="margin-top: 4px;"><strong>Project Impact:</strong> <span id="triageProjectImpact"></span></div>
+                </div>
+              </div>
+
+              <div class="triage-section" style="margin-bottom: 14px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
+                <div style="font-size: 0.72rem; color: #818CF8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;">Recommended Practical Fix</div>
+                <div id="triageFixContainer" style="font-size: 0.84rem; line-height: 1.5; color: var(--text-main);"></div>
+                <div id="triageAltFixContainer" style="margin-top: 10px; display: none;">
+                  <div style="font-size: 0.72rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; margin-bottom: 4px;">Alternative Approach</div>
+                  <div id="triageAltFixBody" style="font-size: 0.82rem; color: var(--text-secondary); line-height: 1.5;"></div>
+                </div>
+              </div>
+
+              <div class="triage-section" style="margin-bottom: 14px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;">
+                <div style="font-size: 0.72rem; color: #818CF8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;">Verification Test Cases & Edge Cases</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                  <div>
+                    <strong style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; display: block; margin-bottom: 4px;">Target Tests</strong>
+                    <ul id="triageTestCasesList" style="padding-left: 16px; margin: 0; font-size: 0.8rem; color: var(--text-secondary); line-height: 1.4;"></ul>
+                  </div>
+                  <div>
+                    <strong style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; display: block; margin-bottom: 4px;">Edge Cases</strong>
+                    <ul id="triageEdgeCasesList" style="padding-left: 16px; margin: 0; font-size: 0.8rem; color: var(--text-secondary); line-height: 1.4;"></ul>
+                  </div>
+                </div>
+              </div>
+
+              <div class="triage-section" style="margin-bottom: 6px;">
+                <div style="font-size: 0.72rem; color: #818CF8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;">Recommended Next Actions</div>
+                <ol id="triageNextActionsList" style="padding-left: 18px; margin: 0; font-size: 0.82rem; color: var(--text-secondary); line-height: 1.5;"></ol>
               </div>
             </div>
           </div>
@@ -1217,6 +1338,7 @@
 
   <!-- Client Knowledge Engine & Main App -->
   <script src="metrics-client.js?v=2026"></script>
+  <script src="issue-triage-engine.js?v=2026"></script>
   <script src="offline-ai-engine.js?v=2026"></script>
   <script src="code-review-engine.js?v=2026"></script>
   <script src="knowledge.js?v=2026"></script>
