@@ -196,61 +196,75 @@ class AIService {
   }
 
   // Issue Triage Analyzer
-  async triageIssue({ title, description, repoName = '' }) {
+  async triageIssue({ title, description, repoName = '', issueMeta = null }) {
+    const issueTriageEngine = require('./issue-triage-engine');
+
+    // 1. If Gemini is configured, generate with real LLM structure
     if (this.isConfigured()) {
-      const prompt = `Repo: ${repoName}\nTitle: ${title}\nDescription: ${description}`;
-      const res = await this.generateText(prompt, 'Return JSON with issueType, priority, difficulty, suggestedLabels, summary, possibleAffectedArea, suggestedNextSteps');
+      const prompt = `Repository: ${repoName || 'None'}
+Issue Title: ${title || 'N/A'}
+Issue Description / Logs:
+${description || 'N/A'}
+
+Analyze this issue and return ONLY a valid JSON object matching this schema:
+{
+  "summary": "Clear executive summary of the issue",
+  "primaryType": "Bug | Security | Performance | Feature Request | Enhancement | Documentation | UI/UX | Build/Compilation | Configuration",
+  "secondaryType": "string or null",
+  "typeReason": "Why this type was chosen",
+  "severity": "Critical | High | Medium | Low",
+  "severityReason": "Why this severity was chosen",
+  "priority": "P0 | P1 | P2 | P3",
+  "priorityReason": "Why this priority was chosen",
+  "confidence": "High | Medium | Low",
+  "confidenceReason": "Why this confidence level was chosen",
+  "affectedComponent": "Affected module or component",
+  "rootCause": {
+    "status": "Confirmed from issue | Hypothesis | Confirmed from stack trace",
+    "explanation": "Detailed root cause analysis"
+  },
+  "evidence": ["Evidence 1", "Evidence 2"],
+  "reproductionSteps": ["Step 1", "Step 2"],
+  "expectedBehavior": "What should happen",
+  "actualBehavior": "What is actually happening",
+  "impact": {
+    "user": "Impact on users",
+    "technical": "Impact on system",
+    "project": "Impact on project"
+  },
+  "recommendedFix": "Practical fix with code if appropriate",
+  "alternativeFix": "Alternative solution or null",
+  "testCases": ["Test 1", "Test 2"],
+  "edgeCases": ["Edge case 1", "Edge case 2"],
+  "difficulty": "Easy | Medium | Hard",
+  "difficultyReason": "Why this difficulty was estimated",
+  "beginnerFriendly": "Yes | No | Partially",
+  "beginnerReason": "Why beginner friendly or not",
+  "nextActions": ["Action 1", "Action 2"]
+}`;
+      const res = await this.generateText(prompt, 'You are a Principal Software Engineer and Open Source Issue Triage Specialist. Analyze issues factually without hallucinating nonexistent files or line numbers.');
       if (res) {
         try {
           const clean = res.replace(/```json/g, '').replace(/```/g, '').trim();
-          return { triage: JSON.parse(clean), mode: 'Live AI (Gemini)' };
+          const parsed = JSON.parse(clean);
+          parsed.issueTitle = title;
+          parsed.analyzedAt = new Date().toISOString();
+          return { triage: parsed, mode: 'Live AI (Gemini)' };
         } catch (e) {}
       }
     }
 
-    const full = `${title} ${description}`.toLowerCase();
-    let issueType = 'Bug';
-    let priority = 'Medium';
-    let difficulty = 'Beginner';
-    let labels = ['triage-needed'];
-
-    if (full.includes('doc') || full.includes('typo') || full.includes('guide')) {
-      issueType = 'Documentation';
-      priority = 'Low';
-      difficulty = 'Beginner';
-      labels = ['documentation', 'good first issue'];
-    } else if (full.includes('security') || full.includes('vulnerability') || full.includes('cve')) {
-      issueType = 'Security';
-      priority = 'Critical';
-      difficulty = 'Advanced';
-      labels = ['security', 'urgent'];
-    } else if (full.includes('slow') || full.includes('memory') || full.includes('performance')) {
-      issueType = 'Performance';
-      priority = 'High';
-      difficulty = 'Advanced';
-      labels = ['performance', 'optimization'];
-    } else if (full.includes('feature') || full.includes('add') || full.includes('support')) {
-      issueType = 'Feature';
-      priority = 'Medium';
-      difficulty = 'Intermediate';
-      labels = ['enhancement'];
-    }
+    // 2. Comprehensive deterministic diagnostic engine
+    const analysis = issueTriageEngine.triageIssue({
+      title,
+      description,
+      repoContext: repoName ? { fullName: repoName, name: repoName } : null,
+      issueMeta
+    });
 
     return {
-      triage: {
-        issueType,
-        priority,
-        difficulty,
-        suggestedLabels: labels,
-        summary: `Identified as a ${issueType.toLowerCase()} concern requiring ${priority.toLowerCase()} priority evaluation.`,
-        possibleAffectedArea: full.includes('render') ? 'Rendering & Lifecycle Engine' : 'Core Module Handlers',
-        suggestedNextSteps: [
-          'Reproduce behavior with a minimal test reproduction',
-          'Review error stack trace and relevant module lines',
-          'Submit patch with accompanying regression test'
-        ]
-      },
-      mode: 'AI Engine Mode'
+      triage: analysis,
+      mode: 'Issue Triage Engine (Diagnostic Pipeline)'
     };
   }
 
